@@ -1,0 +1,999 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>US Wealth Distribution</title>
+<meta name="description" content="US net worth by 1-percentile group, 1950 to today, as a 3-D surface, with share, nominal, CPI-U, PCE and consumer-spending views.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/3.1.0/plotly.min.js"></script>
+<script src="data/wealth.js"></script>
+<script src="data/scf.js"></script>
+<script src="data/verification.js"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-0: #f5f4f1;
+    --surface-1: #fcfcfb;
+    --border: #e2e0da;
+    --grid: #e7e5e0;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #7a7974;
+    --accent: #2a78d6;
+    --highlight: #eb6834;
+    --good: #0ca30c;
+    --critical: #d03b3b;
+    --warning: #b57f00;
+    --neg-1: #e34948; --neg-0: #f4c3c2; --mid: #f0efec;
+    --seq-1: #86b6ef; --seq-2: #5598e7; --seq-3: #2a78d6; --seq-4: #1c5cab; --seq-5: #0d366b;
+    --tier-measured: #2a78d6; --tier-imputed: #86b6ef; --tier-nowcast: #eda100; --tier-extended: #eb6834;
+    --guess: #8e8d87;
+    --cat-1: #2a78d6; --cat-2: #eb6834; --cat-3: #1baf7a; --cat-4: #eda100; --cat-5: #e87ba4; --cat-6: #008300; --cat-7: #4a3aa7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --surface-0: #111110; --surface-1: #1a1a19; --border: #2f2f2d; --grid: #2a2a28;
+      --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+      --accent: #3987e5; --highlight: #d95926; --warning: #c98500;
+      --neg-1: #e66767; --neg-0: #6b2b2b; --mid: #383835;
+      --seq-1: #184f95; --seq-2: #2a78d6; --seq-3: #5598e7; --seq-4: #9ec5f4; --seq-5: #e3effd;
+      --tier-measured: #3987e5; --tier-imputed: #1c5cab; --tier-nowcast: #c98500; --tier-extended: #d95926;
+      --guess: #9a9992;
+      --cat-1: #3987e5; --cat-2: #d95926; --cat-3: #199e70; --cat-4: #c98500; --cat-5: #d55181; --cat-6: #008300; --cat-7: #9085e9;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-0: #111110; --surface-1: #1a1a19; --border: #2f2f2d; --grid: #2a2a28;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+    --accent: #3987e5; --highlight: #d95926; --warning: #c98500;
+    --neg-1: #e66767; --neg-0: #6b2b2b; --mid: #383835;
+    --seq-1: #184f95; --seq-2: #2a78d6; --seq-3: #5598e7; --seq-4: #9ec5f4; --seq-5: #e3effd;
+    --tier-measured: #3987e5; --tier-imputed: #1c5cab; --tier-nowcast: #c98500; --tier-extended: #d95926;
+    --guess: #9a9992;
+    --cat-1: #3987e5; --cat-2: #d95926; --cat-3: #199e70; --cat-4: #c98500; --cat-5: #d55181; --cat-6: #008300; --cat-7: #9085e9;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--surface-0); color: var(--text-primary);
+    font: 15px/1.55 Inter, system-ui, -apple-system, sans-serif;
+  }
+  main { max-width: 1180px; margin: 0 auto; padding: 32px 16px 64px; }
+  header h1 { font-size: 28px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.01em; }
+  header p { margin: 0; color: var(--text-secondary); max-width: 760px; }
+  a { color: var(--accent); }
+
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; }
+  .viz { margin-top: 24px; padding: 16px; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: end; }
+  .control label, .control .label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .seg button {
+    font: inherit; font-size: 13px; padding: 6px 12px; border: 0; background: transparent;
+    color: var(--text-secondary); cursor: pointer; border-right: 1px solid var(--border);
+  }
+  .seg button:last-child { border-right: 0; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .range { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--text-secondary); }
+  .range input[type=number] { width: 64px; font: inherit; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-1); color: var(--text-primary); }
+
+  .chart-key { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 0; font-size: 12px; color: var(--text-secondary); }
+  .chart-key span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; background: var(--c); }
+  .view-note { margin: 12px 0 0; font-size: 13px; color: var(--text-secondary); min-height: 20px; }
+  #chart { width: 100%; height: 620px; margin-top: 8px; }
+
+  .tiers { display: flex; height: 10px; border-radius: 5px; overflow: hidden; gap: 2px; margin-top: 12px; }
+  .tiers div { height: 100%; }
+  .tier-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: 12px; color: var(--text-secondary); }
+  .tier-legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; background: var(--c); }
+
+  .slice { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .slice-head { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+  .slice-head input[type=range] { flex: 1 1 240px; accent-color: var(--highlight); }
+  .slice-head strong { font-size: 20px; min-width: 110px; font-variant-numeric: tabular-nums; }
+  .check { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--text-secondary); cursor: pointer; }
+  .check input { accent-color: var(--highlight); }
+  .slice-title { margin: 0; font-weight: 600; font-size: 14px; }
+  #slice-chart { width: 100%; height: 260px; }
+  .share-view th:nth-child(3), .share-view td:nth-child(3) { display: none; }  /* same number as column 2 */
+  .cell { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-0); }
+  .cell-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+  .cell-head strong { font-size: 16px; }
+  .cell-controls { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13px; color: var(--text-secondary); }
+  .cell-controls select { font: inherit; padding: 3px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-1); color: var(--text-primary); }
+  .stackbar { display: flex; gap: 2px; height: 28px; border-radius: 6px; overflow: hidden; }
+  .stackbar div { height: 100%; min-width: 2px; }
+  .cell-big { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 8px; vertical-align: -1px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+  th { font-size: 12px; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  td.num, th.num { text-align: right; }
+
+  section { margin-top: 40px; }
+  section h2 { font-size: 20px; margin: 0 0 12px; }
+  .sources { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+  .source { padding: 14px 16px; }
+  .source h3 { font-size: 15px; margin: 0 0 4px; }
+  .source p { margin: 0 0 6px; font-size: 13px; color: var(--text-secondary); }
+  .source ul { margin: 0; padding-left: 18px; font-size: 13px; }
+  .method { padding: 16px 20px; font-size: 14px; }
+  .method dt { font-weight: 600; margin-top: 10px; }
+  .method dd { margin: 2px 0 0; color: var(--text-secondary); }
+  code { font-size: 12.5px; background: var(--surface-0); padding: 1px 5px; border-radius: 4px; }
+
+  .status { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; white-space: nowrap; }
+  .status.ok { color: var(--good); } .status.fail { color: var(--critical); } .status.review { color: var(--warning); }
+  .verify { padding: 8px 12px; overflow-x: auto; }
+  .muted { color: var(--text-muted); font-size: 13px; }
+  footer { margin-top: 40px; font-size: 12px; color: var(--text-muted); }
+
+  @media (max-width: 640px) {
+    header h1 { font-size: 22px; }
+    #chart { height: 460px; }
+    .seg button { padding: 6px 9px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1 id="page-title">Who owns America's wealth, 1950–2026</h1>
+    <p><span id="page-sub">Household net worth</span> broken down into 100 one-percent groups, every year since 1950. Drag to rotate, hover for values, zoom with the chart toolbar.</p>
+  </header>
+
+  <div class="card viz">
+    <div class="controls">
+      <div class="control">
+        <span class="label" id="measure-label">Measure</span>
+        <div class="seg" role="group" aria-labelledby="measure-label" id="measure-seg">
+          <button data-measure="wealth" aria-pressed="true">Wealth</button>
+          <button data-measure="income" aria-pressed="false">Income</button>
+        </div>
+      </div>
+      <div class="control">
+        <span class="label" id="view-label">View</span>
+        <div class="seg" role="group" aria-labelledby="view-label" id="view-seg"></div>
+      </div>
+      <div class="control">
+        <span class="label" id="shape-label">Chart</span>
+        <div class="seg" role="group" aria-labelledby="shape-label" id="shape-seg">
+          <button data-shape="pillars" aria-pressed="true">Pillars</button>
+          <button data-shape="surface" aria-pressed="false">Surface</button>
+        </div>
+      </div>
+      <div class="control">
+        <span class="label" id="scale-label">Height scale</span>
+        <div class="seg" role="group" aria-labelledby="scale-label" id="scale-seg">
+          <button data-scale="linear" aria-pressed="true">Linear</button>
+          <button data-scale="log" aria-pressed="false">Log</button>
+        </div>
+      </div>
+      <div class="control">
+        <span class="label">Percentiles shown</span>
+        <div class="range">
+          <input type="number" id="p-lo" min="1" max="100" value="1" aria-label="Lowest percentile shown">
+          to
+          <input type="number" id="p-hi" min="1" max="100" value="100" aria-label="Highest percentile shown">
+        </div>
+      </div>
+      <div class="control">
+        <span class="label">Years shown</span>
+        <div class="range">
+          <input type="number" id="y-lo" min="1950" max="2026" value="1950" aria-label="First year shown">
+          to
+          <input type="number" id="y-hi" min="1950" max="2026" value="2026" aria-label="Last year shown">
+        </div>
+      </div>
+    </div>
+    <p class="view-note" id="view-note"></p>
+    <p class="chart-key" id="chart-key">
+      <span style="--c: var(--seq-4)" id="key-more">More wealth</span>
+      <span style="--c: var(--seq-1)" id="key-less">Less wealth</span>
+      <span style="--c: var(--neg-1)" id="key-neg">Net debt</span>
+      <span style="--c: var(--guess)" id="key-guess">Estimated: WID shows exactly 0.00%</span>
+      <span style="--c: var(--highlight)">Slice</span>
+    </p>
+    <div id="chart" role="img" aria-label="3-D surface of US wealth by year and percentile"></div>
+
+    <div class="tiers" id="tiers" aria-hidden="true"></div>
+    <div class="tier-legend" id="tier-legend"></div>
+
+    <div class="slice">
+      <div class="slice-head">
+        <span class="label" id="slice-label" style="margin:0">Slice by</span>
+        <div class="seg" role="group" aria-labelledby="slice-label" id="slice-seg">
+          <button data-axis="year" aria-pressed="true">Year</button>
+          <button data-axis="pct" aria-pressed="false">Percentile</button>
+        </div>
+        <input type="range" id="slice" min="1950" max="2026" value="2026" aria-label="Slice position">
+        <strong id="slice-out">2026</strong>
+        <label class="check" for="cut"><input type="checkbox" id="cut"> Cut away pillars past the slice</label>
+      </div>
+      <div class="slice-head">
+        <span class="label" id="bd-label" style="margin:0">Show</span>
+        <div class="seg" role="group" aria-labelledby="bd-label" id="bd-seg">
+          <button data-bd="wealth" aria-pressed="true" id="bd-value">Wealth</button>
+          <button data-bd="gender" aria-pressed="false">Gender</button>
+          <button data-bd="race" aria-pressed="false">Race</button>
+          <button data-bd="holdings" aria-pressed="false">Location of money</button>
+          <button data-bd="sector" aria-pressed="false">Work sector</button>
+        </div>
+        <div class="seg" role="group" aria-label="Work sector grouping" id="sector-seg" hidden>
+          <button data-sector="occupation" aria-pressed="true">Occupation</button>
+          <button data-sector="work" aria-pressed="false">Work status</button>
+        </div>
+      </div>
+      <p class="slice-title" id="slice-title"></p>
+      <div id="slice-chart" role="img" aria-label="Bar chart of the selected slice"></div>
+      <p class="chart-key" id="bd-key" hidden></p>
+      <div class="cell" id="cell">
+        <div class="cell-head"><strong id="cell-title"></strong><span class="muted" id="cell-hint"></span></div>
+        <div class="cell-controls">
+          <label for="avg-y">Average over years
+            <select id="avg-y"><option value="0">this year only</option><option value="1">± 1 year</option><option value="2">± 2 years</option><option value="3">± 3 years</option><option value="5">± 5 years</option><option value="10">± 10 years</option></select>
+          </label>
+          <label for="avg-p">and percentiles
+            <select id="avg-p"><option value="0">this percentile only</option><option value="1">± 1</option><option value="2">± 2</option><option value="5">± 5</option><option value="10">± 10</option></select>
+          </label>
+        </div>
+        <div class="cell-big" id="cell-big"></div>
+        <div class="stackbar" id="cell-bar" aria-hidden="true"></div>
+        <table id="cell-table"><tbody></tbody></table>
+        <p class="muted" id="cell-note" style="margin:0"></p>
+      </div>
+      <table id="slice-table">
+        <thead><tr><th id="col-a">Group</th><th class="num" id="col-value">Value</th><th class="num" id="col-c">Share of all wealth</th></tr></thead>
+        <tbody id="slice-body"></tbody>
+      </table>
+      <p class="muted" id="slice-note"></p>
+    </div>
+  </div>
+
+  <section>
+    <h2>Sources</h2>
+    <div class="sources">
+      <div class="card source">
+        <h3>WID.world: net personal wealth shares</h3>
+        <p>Share of wealth held by each 1-percentile group (<code>shwealj992</code>, p0p1 … p99p100), 1950–2024.</p>
+        <ul>
+          <li><a href="https://wid.world/country/usa/" target="_blank" rel="noopener">WID.world: United States</a></li>
+          <li><a href="https://wid.world/data/" target="_blank" rel="noopener">WID bulk data download</a> · income: <code>sptincj992</code> (pre-tax national income), 1950–2024</li>
+          <li><a href="https://wid.world/document/the-rise-of-income-and-wealth-inequality-in-america-evidence-from-distributional-macroeconomic-accounts-world-inequality-lab-wp-2020-20/" target="_blank" rel="noopener">Saez &amp; Zucman (2020), Distributional Macroeconomic Accounts</a></li>
+          <li><a href="https://wid.world/document/wid-income-and-wealth-distributional-series-updated-and-extended-coverage-1800-2024-world-inequality-lab-technical-note-2025-10/" target="_blank" rel="noopener">WID technical note: series 1800–2024</a></li>
+        </ul>
+      </div>
+      <div class="card source">
+        <h3>Federal Reserve: Distributional Financial Accounts</h3>
+        <p>Quarterly net-worth shares for the top 0.1%, next 0.9%, next 9%, next 40% and bottom 50%. Used to carry the WID bins forward to 2025–2026 and as a cross-check.</p>
+        <ul>
+          <li><a href="https://www.federalreserve.gov/releases/z1/dataviz/dfa/" target="_blank" rel="noopener">DFA overview</a></li>
+          <li><a href="https://www.federalreserve.gov/releases/z1/dataviz/download/zips/dfa.zip" target="_blank" rel="noopener">DFA data (zip)</a></li>
+        </ul>
+      </div>
+      <div class="card source">
+        <h3>Federal Reserve: Survey of Consumer Finances</h3>
+        <p>Household-level survey, every three years 1989–2022. Used for the Gender, Race and Location of money breakdowns: who is in each 1% percentile and what they hold.</p>
+        <ul>
+          <li><a href="https://www.federalreserve.gov/econres/scfindex.htm" target="_blank" rel="noopener">SCF overview</a></li>
+          <li><a href="https://www.federalreserve.gov/econres/scf-previous-surveys.htm" target="_blank" rel="noopener">Summary extract data, all surveys</a></li>
+          <li><a href="https://www.federalreserve.gov/econres/files/bulletin.macro.txt" target="_blank" rel="noopener">Variable definitions (codebook)</a></li>
+        </ul>
+      </div>
+      <div class="card source">
+        <h3>Totals and households</h3>
+        <p>Turns percentage shares into dollars per household.</p>
+        <ul>
+          <li><a href="https://fred.stlouisfed.org/series/A032RC1A027NBEA" target="_blank" rel="noopener">National income (BEA, A032RC1A027NBEA)</a>, for the Income measure</li>
+          <li><a href="https://fred.stlouisfed.org/series/TNWBSHNO" target="_blank" rel="noopener">Household &amp; nonprofit net worth (Fed Z.1, TNWBSHNO)</a></li>
+          <li><a href="https://fred.stlouisfed.org/series/TTLHH" target="_blank" rel="noopener">Total households (Census, TTLHH)</a></li>
+        </ul>
+      </div>
+      <div class="card source">
+        <h3>Prices and consumer spending</h3>
+        <p>Used by the CPI-U, PCE and consumer-spending views.</p>
+        <ul>
+          <li><a href="https://fred.stlouisfed.org/series/CPIAUCNS" target="_blank" rel="noopener">CPI-U, all items (BLS, CPIAUCNS)</a> · <a href="https://www.bls.gov/cpi/" target="_blank" rel="noopener">BLS CPI</a></li>
+          <li><a href="https://fred.stlouisfed.org/series/DPCERG3A086NBEA" target="_blank" rel="noopener">PCE price index, annual (BEA)</a> · <a href="https://fred.stlouisfed.org/series/PCEPI" target="_blank" rel="noopener">monthly</a></li>
+          <li><a href="https://fred.stlouisfed.org/series/PCECA" target="_blank" rel="noopener">Personal consumption expenditures, annual (BEA)</a> · <a href="https://fred.stlouisfed.org/series/PCE" target="_blank" rel="noopener">monthly</a></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>How the numbers are built</h2>
+    <div class="card method">
+      <dl>
+        <dt>Share of wealth</dt>
+        <dd>WID's share of total net personal wealth held by each 1-percentile group. Bins with more debt than assets are negative (shown in red).</dd>
+        <dt>Nominal dollars per household</dt>
+        <dd>share × total household net worth (Fed Z.1, year-end) ÷ (households ÷ 100). This gives the average net worth of a household in that 1% group, in dollars of that year.</dd>
+        <dt>Real dollars, CPI-U / PCE</dt>
+        <dd id="m-real"></dd>
+        <dt>Years of consumer spending</dt>
+        <dd>Average net worth in the group ÷ consumer spending per household (PCE ÷ households). A value of 10 means the group's wealth would pay for 10 years of the average household's spending.</dd>
+        <dt>Adults vs households</dt>
+        <dd>WID ranks adults aged 20+, with each couple's wealth split equally between them, not households. It is the only source with 1-percentile detail back to 1950, so its shares are applied to household totals here. Fed data, which ranks households, puts the top 1% about <span id="m-gap">5</span> points lower than WID does.</dd>
+        <dt>Grey pillars: estimated values</dt>
+        <dd id="m-guess">WID publishes each group's share rounded to 0.01% of all wealth. Groups holding almost nothing, or owing almost as much as they own, come out as exactly 0.00%, which hides both their size and whether they are in debt. Each run of these zeros is estimated by drawing a straight line between the nearest published groups on either side; wealth always rises with rank, so the line stays in order. A run at the very bottom (in the 1950s) is extended from the trend of the next 20 groups. Every estimate stays within ±0.0045%, so it still rounds to WID's 0.00%.</dd>
+        <dt>Income</dt>
+        <dd>The Income measure is WID's pre-tax national income for each 1% group, 1950–2024: wages plus business and investment income, before taxes and transfers, with pensions counted when they are paid out. It is broader than salary alone. Dollar views apply these shares to US national income (BEA) per household, the same way wealth shares are applied to household net worth. Groups WID rounds to exactly 0.00% are estimated in grey, as for wealth. There is no 1% income data after 2024 yet.</dd>
+        <dt>Gender, race, location of money and work sector</dt>
+        <dd id="m-scf"></dd>
+        <dt>Stair-steps near zero</dt>
+        <dd>Because of that 0.01% rounding, the groups just above and below zero jump between a few rounded values, which shows up as steps in the Log view.</dd>
+        <dt>Filling gaps</dt>
+        <dd id="m-gaps"></dd>
+      </dl>
+    </div>
+  </section>
+
+  <section>
+    <h2>Verification</h2>
+    <div class="card verify">
+      <table>
+        <thead><tr><th>Check</th><th>Result</th><th>Detail</th></tr></thead>
+        <tbody id="checks"></tbody>
+      </table>
+    </div>
+    <h3 style="font-size:16px;margin:24px 0 8px">Meaning checks by Jev (TypeSafe)</h3>
+    <p class="muted" id="jev-intro"></p>
+    <div class="card verify" id="jev-wrap">
+      <table>
+        <thead><tr><th>Claim on this page</th><th>Source doc</th><th>Jev verdict</th><th class="num">Confidence</th><th>Result</th></tr></thead>
+        <tbody id="jev"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>Built by <code>scripts/fetch_data.py</code> → <code>scripts/build_data.py</code> → <code>scripts/verify.py</code>. Rerun them to refresh the data.</footer>
+</main>
+
+<script>
+(() => {
+  const W = window.WEALTH, V = window.VERIFICATION;
+  const years = W.years, base = W.base_year;
+
+  const VIEWS = {
+    share:       { label: "Share of wealth",   z: "Share of total wealth (%)",         fmt: v => `${v.toFixed(v !== 0 && Math.abs(v) < 0.1 ? 3 : 2)}%`, logUnit: 0.01,
+                   note: "Percent of all US household wealth held by each 1% group. The top 1% ridge dwarfs everything else. Switch to Log to see the bottom 99%." },
+    nominal:     { label: "Nominal $",         z: "Avg net worth per household (current $)", fmt: money, logUnit: 1000,
+                   note: "Average net worth of a household in each 1% group, in dollars of that year (not adjusted for inflation)." },
+    real_cpi:    { label: "Real $ (CPI-U)",    z: `Avg net worth per household (${base} $, CPI-U)`, fmt: money, logUnit: 1000,
+                   note: `Adjusted for inflation with the BLS consumer price index (CPI-U), in ${base} dollars.` },
+    real_pce:    { label: "Real $ (PCE)",      z: `Avg net worth per household (${base} $, PCE)`, fmt: money, logUnit: 1000,
+                   note: `Adjusted for inflation with the BEA PCE price index (the Fed's preferred inflation measure), in ${base} dollars.` },
+    spend_years: { label: "Consumer spending", z: "Years of avg household spending",     fmt: v => `${v.toFixed(Math.abs(v) < 1 ? 2 : 1)} yrs`, logUnit: 0.01,
+                   note: "Group's average net worth divided by consumer spending per household (PCE ÷ households)." },
+  };
+  const TIERS = {
+    measured:     { label: "Measured (WID, from tax microdata)", color: "--tier-measured" },
+    wid_imputed:  { label: "WID estimate from income-tax trends", color: "--tier-imputed" },
+    wid_nowcast:  { label: "WID preliminary estimate (nowcast)", color: "--tier-nowcast" },
+    extended_dfa: { label: "Extended here with Fed DFA", color: "--tier-extended" },
+    none: { label: "No 1% income data yet", color: "--grid" },
+  };
+  const GROUPS = [["Bottom 50%", 0, 50], ["50th–90th", 50, 90], ["90th–99th", 90, 99], ["Top 1%", 99, 100]];
+
+  const state = { shape: "pillars", view: "share", scale: "linear", lo: 1, hi: 100,
+                  y0: years[0], y1: years[years.length - 1],
+                  measure: "wealth", sector: "occupation",
+                  breakdown: "wealth", avgY: 0, avgP: 0, cellYear: years[years.length - 1], cellPct: 100,
+                  sliceAxis: "year", year: years[years.length - 1], pct: 100, cut: false };
+  try { Object.assign(state, JSON.parse(localStorage.getItem("wealth3d") || "{}")); } catch (e) {}
+  const save = () => { try { localStorage.setItem("wealth3d", JSON.stringify(state)); } catch (e) {} };
+
+  // Axis title for the current view and population.
+  // Axis titles and notes for the income measure.
+  const INCOME_TEXT = {
+    share: ["Share of total pre-tax income (%)", "Percent of all US pre-tax income received by each 1% group. Switch to Log to see the bottom 99% in detail."],
+    nominal: ["Avg pre-tax income per household (current $)", "Average pre-tax income of a household in each 1% group, in dollars of that year."],
+    real_cpi: [`Avg pre-tax income per household (${base} $, CPI-U)`, `Adjusted for inflation with the BLS consumer price index (CPI-U), in ${base} dollars.`],
+    real_pce: [`Avg pre-tax income per household (${base} $, PCE)`, `Adjusted for inflation with the BEA PCE price index, in ${base} dollars.`],
+    spend_years: ["Income ÷ avg household spending (years)", "Each group's average income divided by consumer spending per household (PCE ÷ households). 1 means it matches average spending."],
+  };
+  const zTitle = view => isInc() ? INCOME_TEXT[state.view][0] : view.z;
+  const viewNote = () => isInc() ? INCOME_TEXT[state.view][1] : VIEWS[state.view].note;
+  function money(v) {
+    const a = Math.abs(v), s = v < 0 ? "−$" : "$";
+    if (a >= 1e9) return `${s}${(a / 1e9).toFixed(2)}B`;
+    if (a >= 1e6) return `${s}${(a / 1e6).toFixed(a >= 1e7 ? 1 : 2)}M`;
+    if (a >= 1e3) return `${s}${(a / 1e3).toFixed(a >= 1e5 ? 0 : 1)}K`;
+    return `${s}${a.toFixed(0)}`;
+  }
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const ordinal = n => n + (["th","st","nd","rd"][(n % 100 - 20) % 10] || ["th","st","nd","rd"][n % 100] || "th");
+
+  // Signed log so negative (net-debt) bins survive the log view.
+  const slog = (v, u) => Math.sign(v) * Math.log10(1 + Math.abs(v) / u);
+
+  // ---------- controls
+  const seg = document.getElementById("view-seg");
+  for (const [k, v] of Object.entries(VIEWS)) {
+    const b = document.createElement("button");
+    b.textContent = v.label; b.dataset.view = k;
+    seg.appendChild(b);
+  }
+  function syncButtons() {
+    seg.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.view === state.view));
+    document.querySelectorAll("#scale-seg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.scale === state.scale));
+    document.querySelectorAll("#shape-seg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.shape === state.shape));
+    document.querySelectorAll("#slice-seg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.axis === state.sliceAxis));
+    document.querySelectorAll("#bd-seg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.bd === state.breakdown));
+    document.querySelectorAll("#measure-seg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.measure === state.measure));
+    document.querySelectorAll("#sector-seg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.sector === state.sector));
+    document.getElementById("sector-seg").hidden = state.breakdown !== "sector";
+    document.getElementById("bd-value").textContent = isInc() ? "Income" : "Wealth";
+    seg.querySelector('[data-view="share"]').textContent = isInc() ? "Share of income" : "Share of wealth";
+    document.getElementById("page-sub").textContent = isInc() ? "Pre-tax income" : "Household net worth";
+    document.getElementById("key-more").textContent = isInc() ? "More income" : "More wealth";
+    document.getElementById("key-less").textContent = isInc() ? "Less income" : "Less wealth";
+    document.getElementById("key-neg").textContent = isInc() ? "Negative income" : "Net debt";
+  }
+  seg.addEventListener("click", e => { if (e.target.dataset.view) { state.view = e.target.dataset.view; update(); } });
+  document.getElementById("bd-seg").addEventListener("click", e => { if (e.target.dataset.bd) { state.breakdown = e.target.dataset.bd; update(); } });
+  document.getElementById("measure-seg").addEventListener("click", e => { if (e.target.dataset.measure) { state.measure = e.target.dataset.measure; update(); } });
+  document.getElementById("sector-seg").addEventListener("click", e => { if (e.target.dataset.sector) { state.sector = e.target.dataset.sector; update(); } });
+  document.getElementById("shape-seg").addEventListener("click", e => { if (e.target.dataset.shape) { state.shape = e.target.dataset.shape; update(); } });
+  document.getElementById("scale-seg").addEventListener("click", e => { if (e.target.dataset.scale) { state.scale = e.target.dataset.scale; update(); } });
+  const loIn = document.getElementById("p-lo"), hiIn = document.getElementById("p-hi");
+  function readRange() {
+    let lo = Math.max(1, Math.min(100, +loIn.value || 1)), hi = Math.max(1, Math.min(100, +hiIn.value || 100));
+    if (lo > hi) [lo, hi] = [hi, lo];
+    state.lo = lo; state.hi = hi; update();
+  }
+  loIn.addEventListener("change", readRange); hiIn.addEventListener("change", readRange);
+  const y0In = document.getElementById("y-lo"), y1In = document.getElementById("y-hi");
+  y0In.min = y1In.min = years[0]; y0In.max = y1In.max = years[years.length - 1];
+  function readYears() {
+    const clamp = v => Math.max(years[0], Math.min(years[years.length - 1], Math.round(v)));
+    let a = clamp(+y0In.value || years[0]), b = clamp(+y1In.value || years[years.length - 1]);
+    if (a > b) [a, b] = [b, a];
+    state.y0 = a; state.y1 = b; update();
+  }
+  y0In.addEventListener("change", readYears); y1In.addEventListener("change", readYears);
+  // Year indices inside the chosen range.
+  // Wealth or income: same 1% bins, different WID series. Income stops at WID's last year.
+  const INC = W.income, isInc = () => state.measure === "income";
+  const M = () => isInc() ? INC.measures : W.measures;
+  const tierOf = y => isInc() ? INC.tier[y] : W.tier[y];
+  const isGrey = (p, j) => (isInc() ? INC.estimated : W.estimated)[p - 1][j] === 1;
+  function effRange() {
+    if (!isInc()) return [state.y0, state.y1];
+    const a = Math.max(state.y0, INC.years[0]), b = Math.min(state.y1, INC.years[INC.years.length - 1]);
+    return a <= b ? [a, b] : [INC.years[0], INC.years[INC.years.length - 1]];
+  }
+  const inYears = j => { const [a, b] = effRange(); return years[j] >= a && years[j] <= b; };
+  const yearIdx = () => years.map((_, j) => j).filter(inYears);
+  // ---------- slice controls: one slider that cuts along years or percentiles
+  const sliceIn = document.getElementById("slice"), cutIn = document.getElementById("cut");
+  function syncSliceInput() {
+    state.pct = Math.min(state.hi, Math.max(state.lo, state.pct));
+    const [ya, yb] = effRange();
+    state.year = Math.min(yb, Math.max(ya, state.year));
+    if (state.sliceAxis === "year") { sliceIn.min = ya; sliceIn.max = yb; sliceIn.value = state.year; }
+    else { sliceIn.min = state.lo; sliceIn.max = state.hi; sliceIn.value = state.pct; }
+    cutIn.checked = state.cut;
+  }
+  let sliceFrame = 0;
+  sliceIn.addEventListener("input", () => {
+    if (state.sliceAxis === "year") state.year = +sliceIn.value; else state.pct = +sliceIn.value;
+    save(); cancelAnimationFrame(sliceFrame);
+    sliceFrame = requestAnimationFrame(() => { updateSlice(); draw(); });
+  });
+  document.getElementById("slice-seg").addEventListener("click", e => {
+    if (e.target.dataset.axis) { state.sliceAxis = e.target.dataset.axis; update(); }
+  });
+  cutIn.addEventListener("change", () => { state.cut = cutIn.checked; update(); });
+
+  // ---------- tier strip
+  const tiersEl = document.getElementById("tiers"), legendEl = document.getElementById("tier-legend");
+  function drawTiers() {
+    tiersEl.innerHTML = ""; legendEl.innerHTML = "";
+    let runs = [];
+    years.forEach(y => { const t = tierOf(y) || "none"; if (runs.length && runs.at(-1).t === t) runs.at(-1).n++; else runs.push({ t, n: 1, from: y }); });
+    runs.forEach(r => {
+      const d = document.createElement("div");
+      d.style.flex = r.n; d.style.background = `var(${TIERS[r.t].color})`;
+      d.title = `${r.from}–${r.from + r.n - 1}: ${TIERS[r.t].label}`;
+      tiersEl.appendChild(d);
+    });
+    const seen = new Set();
+    runs.forEach(r => {
+      if (seen.has(r.t)) return; seen.add(r.t);
+      const s = document.createElement("span");
+      s.style.setProperty("--c", `var(${TIERS[r.t].color})`);
+      const span = runs.filter(x => x.t === r.t).map(x => x.n > 1 ? `${x.from}–${x.from + x.n - 1}` : `${x.from}`).join(", ");
+      s.textContent = `${span}: ${TIERS[r.t].label}`;
+      legendEl.appendChild(s);
+    });
+  }
+
+  // ---------- chart
+  const chart = document.getElementById("chart");
+  let rendered = false;
+  // Plotly's 3-D canvas swallows wheel events even with scrollZoom off; stop them
+  // before they reach it so the page keeps scrolling over the chart.
+  chart.addEventListener("wheel", e => e.stopPropagation(), { capture: true });
+
+  function colorscale(zmin, zmax) {
+    const pos = [css("--seq-1"), css("--seq-2"), css("--seq-3"), css("--seq-4"), css("--seq-5")];
+    if (zmin >= 0) return pos.map((c, i) => [i / (pos.length - 1), c]);
+    const z0 = -zmin / (zmax - zmin);  // position of zero on the 0..1 scale
+    // Red and blue share one intensity scale: a debt as deep as the peak is full red,
+    // a small debt stays close to the neutral midpoint.
+    // Grey is reserved for estimated values, so zero is a hard step from pale red to pale blue.
+    const depth = Math.min(1, -zmin / Math.max(zmax, 1e-9));
+    const deepest = mix(css("--neg-0"), css("--neg-1"), depth);
+    return [[0, deepest], [z0 * 0.9999, css("--neg-0")],
+            ...pos.map((c, i) => [z0 + (1 - z0) * i / (pos.length - 1), c])];
+  }
+  // Colour at value z on a [[pos, hex], ...] scale spanning zmin..zmax.
+  function colorAt(stops, z, zmin, zmax) {
+    const t = zmax > zmin ? (z - zmin) / (zmax - zmin) : 1;
+    for (let i = 1; i < stops.length; i++) {
+      if (t <= stops[i][0]) {
+        const [p0, c0] = stops[i - 1], [p1, c1] = stops[i];
+        return mix(c0, c1, p1 > p0 ? Math.max(0, (t - p0) / (p1 - p0)) : 1);
+      }
+    }
+    return stops[stops.length - 1][1];
+  }
+  function mix(a, b, t) {
+    const p = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+    const [x, y] = [p(a), p(b)];
+    return "#" + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, "0")).join("");
+  }
+
+  function ticksFor(zmin, zmax, view) {
+    // Ticks start one decade above the log unit so labels don't pile up around zero.
+    const u = VIEWS[view].logUnit, vals = [0];
+    for (let k = -6; k <= 12; k++) {
+      const v = 10 ** k;
+      if (v >= u * 10 && v <= Math.max(Math.abs(zmin), Math.abs(zmax)) * 1.001) { if (v <= zmax) vals.push(v); if (-v >= zmin) vals.push(-v); }
+    }
+    vals.sort((a, b) => a - b);
+    return { tickvals: vals.map(v => slog(v, u)), ticktext: vals.map(v => tickLabel(v, view)) };
+  }
+  function tickLabel(v, view) {
+    if (view === "share") return `${+v.toPrecision(3)}%`;
+    if (view === "spend_years") return `${+v.toPrecision(3)} yrs`;
+    return money(v).replace(".00", "").replace(".0", "");
+  }
+
+  const hoverLine = (p, j, v, view) => v == null ? "" :
+    `<b>${years[j]}</b> · ${ordinal(p - 1)}–${ordinal(p)} percentile<br>${view.fmt(v)}` +
+    (isGrey(p, j) ? "<br><span style='font-size:11px'>Estimated: WID shows exactly 0.00%</span>" : "") +
+    `<br><span style='font-size:11px'>${TIERS[tierOf(years[j])].label}</span>`;
+
+  function buildTraces() {
+    const view = VIEWS[state.view], raw = M()[state.view];
+    const rows = [], ys = [], hover = [];
+    let zmin = Infinity, zmax = -Infinity;
+    for (let p = state.lo; p <= state.hi; p++) {
+      const r = raw[p - 1];
+      const zrow = state.scale === "log" ? r.map(v => v == null ? null : slog(v, view.logUnit)) : r.slice();
+      rows.push(zrow); ys.push(p);
+      hover.push(r.map((v, j) => hoverLine(p, j, v, view)));
+      zrow.forEach((v, j) => { if (!inYears(j)) return; if (v < zmin) zmin = v; if (v > zmax) zmax = v; });
+    }
+    zmin = Math.min(zmin, 0);
+    const zaxis = { title: { text: zTitle(view) + (state.scale === "log" ? " · log" : "") } };
+    if (state.scale === "log") {
+      const rawVals = raw.slice(state.lo - 1, state.hi).flatMap(r => r.filter((_, j) => inYears(j)));
+      Object.assign(zaxis, ticksFor(Math.min(...rawVals), Math.max(...rawVals), state.view), { tickmode: "array" });
+    } else if (state.view !== "share" && state.view !== "spend_years") {
+      zaxis.tickprefix = "$"; zaxis.tickformat = "~s";
+    }
+    const pad = (zmax - zmin) * 0.02;
+    zaxis.range = [zmin - pad, zmax + pad];  // fixed, so cutting the chart doesn't rescale it
+    const stops = colorscale(zmin, zmax);
+    const trace = state.shape === "pillars"
+      ? pillarsTrace(rows, ys, hover, stops, zmin, zmax)
+      : surfaceTrace(rows, ys, hover, stops, zmin, zmax);
+    return { trace, zaxis, rows, ys, hover, stops, zmin, zmax };
+  }
+
+  // Which cells are in the slice, and which survive "cut away".
+  const jSlice = () => years.indexOf(state.year);
+  const inSlice = (p, j) => state.sliceAxis === "year" ? j === jSlice() : p === state.pct;
+  const kept = (p, j) => inYears(j) && (!state.cut || (state.sliceAxis === "year" ? j <= jSlice() : p <= state.pct));
+
+  function surfaceTrace(rows, ys, hover, stops, zmin, zmax) {
+    // Estimated cells get a colour value below zmin, which the scale paints grey.
+    const gap = (zmax - zmin) * 0.05, gmin = zmin - gap, g = gap / (zmax - gmin);
+    const scale = [[0, css("--guess")], [g, css("--guess")], ...stops.map(([t, c]) => [g + (1 - g) * t, c])];
+    scale[2][0] = g + 1e-6;
+    // Cut: drop the rows or columns past the slice (a surface can't have holes).
+    const js = years.map((_, j) => j).filter(j => kept(state.lo, j));
+    const ks = ys.map((_, k) => k).filter(k => !state.cut || state.sliceAxis === "year" || ys[k] <= state.pct);
+    return {
+      type: "surface", x: js.map(j => years[j]), y: ks.map(k => ys[k]),
+      z: ks.map(k => js.map(j => rows[k][j])),
+      // Surface hover reports [x index, y index] and reads per-cell data as data[x][y],
+      // the transpose of z's [y][x] layout, so the hover text is stored year-major.
+      customdata: js.map(j => ks.map(k => hover[k][j])),
+      surfacecolor: ks.map(k => js.map(j => isGrey(ys[k], j) ? gmin : rows[k][j])),
+      colorscale: scale, cmin: gmin, cmax: zmax, showscale: false,
+      contours: { x: { show: false }, y: { show: false }, z: { show: false } },
+      lighting: { ambient: 0.75, diffuse: 0.55, specular: 0.05, roughness: 0.9 },
+      hovertemplate: "%{customdata}<extra></extra>",
+    };
+  }
+
+  // One mesh holds every pillar: 8 corners and 10 faces (no bottom) per pillar, no outlines.
+  // Mesh hover reports the face under the pointer, so hover text is stored per face.
+  function pillarsTrace(rows, ys, hover, stops, zmin, zmax) {
+    const X = [], Y = [], Z = [], I = [], J = [], K = [], faceColor = [], text = [];
+    const guess = css("--guess"), hl = css("--highlight"), w = 0.42;
+    const quads = [[4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]];  // top, 4 sides
+    rows.forEach((row, k) => {
+      const p = ys[k];
+      row.forEach((z, j) => {
+        if (!kept(p, j)) return;
+        const x = years[j], v0 = X.length;
+        for (const zz of [0, z]) for (const [dx, dy] of [[-w, -w], [w, -w], [w, w], [-w, w]]) {
+          X.push(x + dx); Y.push(p + dy); Z.push(zz);
+        }
+        const color = isGrey(p, j) ? guess : inSlice(p, j) ? hl : colorAt(stops, z, zmin, zmax);
+        for (const [a, b, c, d] of quads) {
+          I.push(v0 + a, v0 + a); J.push(v0 + b, v0 + c); K.push(v0 + c, v0 + d);
+          faceColor.push(color, color); text.push(hover[k][j], hover[k][j]);
+        }
+      });
+    });
+    return {
+      type: "mesh3d", x: X, y: Y, z: Z, i: I, j: J, k: K, facecolor: faceColor, text,
+      flatshading: true, hovertemplate: "%{text}<extra></extra>",
+      lighting: { ambient: 0.8, diffuse: 0.45, specular: 0, roughness: 1, fresnel: 0 },
+      lightposition: { x: 1e5, y: -2e5, z: 3e5 },
+    };
+  }
+
+  // Surface mode marks the slice with a line along it.
+  function highlightTrace(rows, ys) {
+    const j = jSlice(), k = ys.indexOf(state.pct);
+    const line = state.sliceAxis === "year"
+      ? { x: ys.map(() => state.year), y: ys, z: rows.map(r => r[j]) }
+      : { x: yearIdx().map(jj => years[jj]), y: yearIdx().map(() => state.pct), z: yearIdx().map(jj => rows[k][jj]) };
+    return { type: "scatter3d", mode: "lines", ...line,
+             line: { color: css("--highlight"), width: 6 }, hoverinfo: "skip", showlegend: false };
+  }
+
+  function defaultCamera() {
+    const k = chart.clientWidth < 600 ? 1.6 : 1;  // pull back on phones so the axes fit
+    return { eye: { x: 1.35 * k, y: -1.45 * k, z: 0.55 * k }, center: { x: 0, y: 0, z: -0.12 } };
+  }
+  function draw() {
+    const built = buildTraces(), { trace, zaxis, rows, ys } = built;
+    const text = css("--text-secondary"), grid = css("--grid");
+    const axis = extra => Object.assign({ color: text, gridcolor: grid, zerolinecolor: grid, showbackground: false, showspikes: false }, extra);
+    const layout = {
+      paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+      font: { family: "Inter, system-ui, sans-serif", size: 12, color: text },
+      margin: { l: 0, r: 0, t: 0, b: 0 },
+      hoverlabel: { bgcolor: css("--surface-1"), bordercolor: css("--border"), font: { color: css("--text-primary") } },
+      scene: {
+        xaxis: axis({ title: { text: "Year" }, range: [effRange()[0] - 0.5, effRange()[1] + 0.5] }),
+        yaxis: axis({ title: { text: "Wealth percentile" }, range: [state.lo - 0.5, state.hi + 0.5] }),
+        zaxis: axis(zaxis),
+        aspectmode: "manual", aspectratio: { x: 1.6, y: 1.1, z: 0.8 },
+        camera: rendered && chart.layout ? chart.layout.scene.camera : defaultCamera(),
+      },
+    };
+    const traces = state.shape === "pillars" ? [trace] : [trace, highlightTrace(rows, ys)];
+    Plotly.react(chart, traces, layout, { responsive: true, displaylogo: false, scrollZoom: false, modeBarButtonsToRemove: ["resetCameraLastSave3d"] });
+    rendered = true;
+    drawSliceChart(built, axis, layout);
+  }
+
+  // Flat bar chart of the current slice, on the same height scale and colours as the 3-D chart.
+  const sliceChart = document.getElementById("slice-chart");
+  let lastBuilt = null, clickBound = false;
+  function drawSliceChart(built, axis, layout3d) {
+    lastBuilt = [built, axis, layout3d];
+    if (state.breakdown === "wealth") drawWealthSlice(built, axis, layout3d);
+    else drawBreakdownSlice(axis, layout3d);
+    if (!clickBound) {
+      clickBound = true;
+      // Clicking a bar picks the percentile (year slice) or year (percentile slice) for the panel below.
+      sliceChart.on("plotly_click", e => {
+        const x = e.points[0].x;
+        if (state.sliceAxis === "year") state.cellPct = x; else state.cellYear = x;
+        save(); redrawSlice(); updateCell();
+      });
+    }
+  }
+  const redrawSlice = () => lastBuilt && drawSliceChart(...lastBuilt);
+  // Outline around the bar the panel below describes.
+  function selectionShape() {
+    const x = state.sliceAxis === "year" ? state.cellPct : state.cellYear;
+    return [{ type: "rect", xref: "x", yref: "paper", x0: x - 0.5, x1: x + 0.5, y0: 0, y1: 1,
+              line: { color: css("--text-primary"), width: 1.5 }, fillcolor: "rgba(0,0,0,0)" }];
+  }
+  function sliceLayout(layout3d, axis, xTitle, yaxis) {
+    return {
+      paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", font: layout3d.font, hoverlabel: layout3d.hoverlabel,
+      margin: { l: 64, r: 8, t: 8, b: 40 }, bargap: 0.15, showlegend: false, barmode: "stack",
+      xaxis: axis({ title: { text: xTitle, font: { size: 11 } }, showgrid: false }), yaxis, shapes: selectionShape(),
+    };
+  }
+  function drawWealthSlice({ rows, ys, hover, stops, zmin, zmax, zaxis }, axis, layout3d) {
+    const byYear = state.sliceAxis === "year", j = jSlice(), k = ys.indexOf(state.pct);
+    const js = yearIdx();
+    const x = byYear ? ys : js.map(jj => years[jj]);
+    const y = byYear ? rows.map(r => r[j]) : js.map(jj => rows[k][jj]);
+    const text = byYear ? hover.map(h => h[j]) : js.map(jj => hover[k][jj]);
+    const color = x.map((xv, i) => {
+      const p = byYear ? xv : state.pct, jj = byYear ? j : js[i];
+      return isGrey(p, jj) ? css("--guess") : colorAt(stops, y[i], zmin, zmax);
+    });
+    // Scale to this slice's own values (always including 0), so a quiet slice isn't flattened
+    // by the top 1%; colours still come from the full 3-D scale.
+    const lo = Math.min(0, ...y), hi = Math.max(0, ...y), pad = (hi - lo) * 0.06 || 1;
+    const yaxis = axis({ title: { text: zaxis.title.text, font: { size: 11 } }, zeroline: true,
+                         range: [lo < 0 ? lo - pad : 0, hi + pad] });
+    for (const key of ["tickvals", "ticktext", "tickmode", "tickprefix", "tickformat"]) if (zaxis[key]) yaxis[key] = zaxis[key];
+    Plotly.react(sliceChart, [{
+      type: "bar", x, y, text, textposition: "none", marker: { color }, hovertemplate: "%{text}<extra></extra>",
+    }], sliceLayout(layout3d, axis, byYear ? `${isInc() ? "Income" : "Wealth"} percentile` : "Year", yaxis), { responsive: true, displayModeBar: false });
+  }
+
+  // ---------- SCF breakdowns: who is in each percentile, and what they hold
+  const S = window.SCF, SV = S.surveys;
+  const SF = () => S.rankings[isInc() ? "income" : "wealth"];  // rank households by net worth or by income
+  const group = () => state.breakdown === "sector" ? state.sector : state.breakdown;
+  const BD = {
+    gender: { denom: "w", title: "Household type", unit: "households" },
+    race: { denom: "w", title: "Race", unit: "households" },
+    holdings: { denom: "assets", title: "What the assets are held in", unit: "assets" },
+    occupation: { denom: "w", title: "Occupation", unit: "households" },
+    work: { denom: "w", title: "Work status", unit: "households" },
+  };
+  const catColor = i => css(`--cat-${i + 1}`);
+  // Weighted sums over percentiles pLo..pHi in survey si.
+  function sums(si, keys, pLo, pHi) {
+    const out = {};
+    const F = SF();
+    for (const k of keys) { let t = 0; for (let b = pLo - 1; b < pHi; b++) t += F[k][si][b]; out[k] = t; }
+    return out;
+  }
+  // Shares for one year: a survey year directly, a year between surveys by straight-line interpolation,
+  // a year outside 1989-2022 from the nearest survey.
+  function sharesAt(group, yr, pLo, pHi) {
+    const cats = S.categories[group].map(c => c[0]), denom = BD[group].denom;
+    const at = si => { const t = sums(si, [...cats, denom, "n", "debt", "w"], pLo, pHi);
+                       return { sh: Object.fromEntries(cats.map(k => [k, t[denom] ? t[k] / t[denom] : 0])), t }; };
+    if (yr <= SV[0]) return { ...at(0), surveys: [SV[0]], interp: false, outside: yr < SV[0] };
+    if (yr >= SV[SV.length - 1]) return { ...at(SV.length - 1), surveys: [SV[SV.length - 1]], interp: false, outside: yr > SV[SV.length - 1] };
+    const i1 = SV.findIndex(v => v >= yr);
+    if (SV[i1] === yr) return { ...at(i1), surveys: [yr], interp: false, outside: false };
+    const a = at(i1 - 1), b = at(i1), f = (yr - SV[i1 - 1]) / (SV[i1] - SV[i1 - 1]);
+    const t = Object.fromEntries(Object.keys(a.t).map(k => [k, a.t[k] * (1 - f) + b.t[k] * f]));
+    return { sh: Object.fromEntries(cats.map(k => [k, a.sh[k] * (1 - f) + b.sh[k] * f])), t,
+             surveys: [SV[i1 - 1], SV[i1]], interp: true, outside: false };
+  }
+  // Average over the year and percentile windows chosen below the chart.
+  function breakdown(group, yr, pct) {
+    const pLo = Math.max(1, pct - state.avgP), pHi = Math.min(100, pct + state.avgP);
+    const yrs = [];
+    for (let y = yr - state.avgY; y <= yr + state.avgY; y++) yrs.push(y);
+    const inRange = yrs.filter(y => y >= SV[0] && y <= SV[SV.length - 1]);
+    const parts = (inRange.length ? inRange : [yr]).map(y => sharesAt(group, y, pLo, pHi));
+    const cats = S.categories[group].map(c => c[0]);
+    const sh = Object.fromEntries(cats.map(k => [k, parts.reduce((a, q) => a + q.sh[k], 0) / parts.length]));
+    const surveys = [...new Set(parts.flatMap(q => q.surveys))].sort();
+    const n = surveys.reduce((a, sv) => a + sums(SV.indexOf(sv), ["n"], pLo, pHi).n / S.implicates, 0);
+    const avgT = k => parts.reduce((a, q) => a + q.t[k], 0) / parts.length;
+    return { sh, surveys, n: Math.round(n), pLo, pHi, interp: parts.some(q => q.interp),
+             centerEst: !SV.includes(yr),  // the bar's own year has no survey
+             outside: parts.every(q => q.outside), debtRatio: avgT("debt") / avgT("assets"), assetsPerHh: avgT("assets") / avgT("w") };
+  }
+
+  function drawBreakdownSlice(axis, layout3d) {
+    const g = group(), cats = S.categories[g], byYear = state.sliceAxis === "year";
+    let x;
+    if (byYear) x = Array.from({ length: state.hi - state.lo + 1 }, (_, i) => state.lo + i);
+    else { x = []; for (let y = Math.max(state.y0, SV[0]); y <= Math.min(state.y1, SV[SV.length - 1]); y++) x.push(y); }
+    const results = x.map(v => byYear ? breakdown(g, state.year, v) : breakdown(g, v, state.pct));
+    const traces = cats.map(([k, label], ci) => ({
+      type: "bar", name: label, x, y: results.map(r => r.sh[k] * 100),
+      marker: { color: catColor(ci), opacity: results.map(r => r.centerEst ? 0.55 : 1) },
+      customdata: x.map(v => byYear ? `${pctName(v)} percentile` : String(v)),
+      hovertemplate: `%{customdata} · ${label}: %{y:.1f}%<extra></extra>`,
+    }));
+    const yaxis = axis({ title: { text: `Share of ${BD[g].unit} (%)`, font: { size: 11 } }, range: [0, 100], ticksuffix: "%" });
+    Plotly.react(sliceChart, traces, sliceLayout(layout3d, axis, byYear ? `${isInc() ? "Income" : "Wealth"} percentile` : "Year", yaxis),
+                 { responsive: true, displayModeBar: false });
+    const key = document.getElementById("bd-key");
+    key.innerHTML = cats.map(([, label], ci) => `<span style="--c: var(--cat-${ci + 1})">${label}</span>`).join("") +
+      `<span style="--c: color-mix(in srgb, var(--text-muted) 55%, var(--surface-1))">Faded: no survey that year (interpolated, or nearest survey)</span>`;
+  }
+
+  // ---------- the panel for one clicked bar
+  function updateCell() {
+    const yr = state.cellYear, p = state.cellPct, view = VIEWS[state.view];
+    const bigEl = document.getElementById("cell-big"), bar = document.getElementById("cell-bar");
+    const tbody = document.querySelector("#cell-table tbody"), note = document.getElementById("cell-note");
+    document.getElementById("cell-hint").textContent =
+      `Click a bar above to pick a ${state.sliceAxis === "year" ? "percentile" : "year"}.`;
+    // Show only the part of the year window that has data for this view.
+    const [dLo, dHi] = state.breakdown === "wealth" ? effRange() : [SV[0], SV[SV.length - 1]];
+    const yLo = Math.max(dLo, yr - state.avgY), yHi = Math.min(dHi, yr + state.avgY);
+    const pLo = Math.max(1, p - state.avgP), pHi = Math.min(100, p + state.avgP);
+    const parts = [];
+    if (state.avgY && yLo < yHi) parts.push(`${yLo}–${yHi}`);
+    if (state.avgP) parts.push(`the ${ordinal(pLo - 1)}–${ordinal(pHi)} percentiles`);
+    document.getElementById("cell-title").textContent =
+      `${yr} · ${pctName(p)} percentile${parts.length ? ` (averaged over ${parts.join(" and ")})` : ""}`;
+    if (state.breakdown === "wealth") {
+      // Average of the chart's own values over the window.
+      let t = 0, c = 0, est = 0;
+      for (let j = 0; j < years.length; j++) {
+        if (years[j] < yLo || years[j] > yHi) continue;
+        for (let q = pLo; q <= pHi; q++) { t += M()[state.view][q - 1][j]; c++; est += isGrey(q, j); }
+      }
+      bigEl.hidden = false; bar.hidden = true; tbody.innerHTML = "";
+      bigEl.textContent = c ? view.fmt(t / c) : "—";
+      note.textContent = `${isInc() ? "Pre-tax income" : "Wealth"}, ${view.label}${state.view === "share" ? "" : ", average per household"}. ${TIERS[tierOf(yr)].label}.` +
+        (est ? ` ${est} of ${c} values in this window are grey estimates.` : "");
+      return;
+    }
+    const g = group(), cats = S.categories[g], r = breakdown(g, yr, p);
+    bigEl.hidden = true; bar.hidden = false;
+    bar.innerHTML = cats.map(([k, label], ci) =>
+      `<div style="flex: ${Math.max(r.sh[k], 0)} 0 0; background: var(--cat-${ci + 1})" title="${label} ${(r.sh[k] * 100).toFixed(1)}%"></div>`).join("");
+    tbody.innerHTML = cats.map(([k, label], ci) =>
+      `<tr><td><span class="swatch" style="background: var(--cat-${ci + 1})"></span>${label}</td><td class="num">${(r.sh[k] * 100).toFixed(1)}% of ${BD[g].unit}</td></tr>`).join("") +
+      (g === "holdings" ? `<tr><td>Average assets per household</td><td class="num">${money(r.assetsPerHh)} (2022 dollars)</td></tr>
+        <tr><td>Debt</td><td class="num">${(r.debtRatio * 100).toFixed(0)}% of assets</td></tr>` : "");
+    const surveys = r.surveys.join(", ");
+    note.textContent = `Survey of Consumer Finances ${surveys}, ${r.n.toLocaleString()} surveyed households, ranked by ${isInc() ? "income" : "net worth"}.` +
+      (r.outside ? ` No survey in ${yr}; showing the nearest (${surveys}).` : r.interp ? " Years between surveys are interpolated." : "") +
+      (r.n < 100 ? " Small sample: widen the average for a steadier estimate." : "");
+  }
+  const avgYIn = document.getElementById("avg-y"), avgPIn = document.getElementById("avg-p");
+  avgYIn.addEventListener("change", () => { state.avgY = +avgYIn.value; save(); redrawSlice(); updateCell(); });
+  avgPIn.addEventListener("change", () => { state.avgP = +avgPIn.value; save(); redrawSlice(); updateCell(); });
+
+  // ---------- slice table
+  const pctName = p => `${ordinal(p - 1)}–${ordinal(p)}`;
+  function updateSlice() {
+    const j = jSlice(), view = VIEWS[state.view];
+    const isShare = state.view === "share", valueHead = isShare ? "Share" : `Avg per household · ${view.label}`;
+    document.getElementById("col-c").textContent = isInc() ? "Share of all income" : "Share of all wealth";
+    const bd = state.breakdown !== "wealth";
+    document.getElementById("slice-table").hidden = bd;
+    document.getElementById("bd-key").hidden = !bd;
+    // Keep the clicked bar on the current slice, and inside what the chart shows.
+    const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+    if (state.sliceAxis === "year") { state.year = clamp(state.year, ...effRange()); state.cellYear = state.year; state.cellPct = clamp(state.cellPct, state.lo, state.hi); }
+    else {
+      state.cellPct = state.pct;
+      state.cellYear = bd ? clamp(state.cellYear, Math.max(state.y0, SV[0]), Math.min(state.y1, SV[SV.length - 1]))
+                          : clamp(state.cellYear, ...effRange());
+    }
+    document.getElementById("col-value").textContent = valueHead;
+    document.getElementById("col-a").closest("table").classList.toggle("share-view", isShare);
+    const body = document.getElementById("slice-body"); body.innerHTML = "";
+    if (state.sliceAxis === "pct") {
+      const p = state.pct, vals = M()[state.view][p - 1], shares = M().share[p - 1];
+      document.getElementById("slice-out").textContent = pctName(p);
+      document.getElementById("slice-title").textContent = bd
+        ? `${BD[group()].title}: the ${pctName(p)} ${isInc() ? "income" : "wealth"} percentile, ${Math.max(state.y0, SV[0])}–${Math.min(state.y1, SV[SV.length - 1])} (surveys every 3 years)`
+        : `The ${pctName(p)} percentile, ${state.y0}–${state.y1}`;
+      document.getElementById("col-a").textContent = "Year";
+      const js = yearIdx(), pick = cmp => js.reduce((best, jj) => cmp(vals[jj], vals[best]) ? jj : best, js[0]);
+      const lowJ = pick((a, b) => a < b), peakJ = pick((a, b) => a > b);
+      for (const [label, jj] of [["First", js[0]], ["Lowest", lowJ], ["Highest", peakJ], ["Last", js[js.length - 1]]]) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${label}: ${years[jj]}${isGrey(p, jj) ? " (estimated)" : ""}</td><td class="num">${view.fmt(vals[jj])}</td><td class="num">${shares[jj].toFixed(shares[jj] !== 0 && Math.abs(shares[jj]) < 0.1 ? 3 : 2)}%</td>`;
+        body.appendChild(tr);
+      }
+      const nEstHere = js.filter(jj => isGrey(p, jj)).length;
+      document.getElementById("slice-note").textContent = bd ? "" :
+        nEstHere ? `${nEstHere} of ${js.length} years in this percentile are estimated (grey): WID shows exactly 0.00%.` : "";
+      updateCell();
+      return;
+    }
+    document.getElementById("slice-out").textContent = state.year;
+    const near = state.year < SV[0] ? SV[0] : state.year > SV[SV.length - 1] ? SV[SV.length - 1] : null;
+    document.getElementById("slice-title").textContent = bd
+      ? `${BD[group()].title}, by ${isInc() ? "income" : "wealth"} percentile, ${state.year}` + (near ? ` (no survey that year; showing ${near})` : "")
+      : `All percentiles in ${state.year}`;
+    document.getElementById("col-a").textContent = "Group";
+    for (const [name, lo, hi] of GROUPS) {
+      let share = 0, val = 0;
+      for (let i = lo; i < hi; i++) { share += M().share[i][j]; val += M()[state.view][i][j]; }
+      const avg = isShare ? share : val / (hi - lo);
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${name}</td><td class="num">${view.fmt(avg)}</td><td class="num">${share.toFixed(1)}%</td>`;
+      body.appendChild(tr);
+    }
+    const notes = [TIERS[tierOf(state.year)].label + "."].concat(W.year_notes[state.year] || []);
+    document.getElementById("slice-note").textContent = bd ? "" : notes.join(" ");
+    updateCell();
+  }
+
+  function update() {
+    syncButtons(); syncSliceInput();
+    loIn.value = state.lo; hiIn.value = state.hi; y0In.value = state.y0; y1In.value = state.y1;
+    avgYIn.value = state.avgY; avgPIn.value = state.avgP;
+    const [ya, yb] = effRange();
+    document.getElementById("view-note").textContent = viewNote() +
+      (isInc() && state.y1 > yb ? ` Income data runs to ${yb}.` : "");
+    document.getElementById("page-title").textContent = isInc()
+      ? `Who earns America's income, ${INC.years[0]}–${INC.years[INC.years.length - 1]}` : `Who owns America's wealth, ${years[0]}–${years[years.length - 1]}`;
+    const est = (isInc() ? INC.estimated : W.estimated).flat().reduce((a, b) => a + b, 0);
+    document.getElementById("key-guess").textContent =
+      `Estimated (${est.toLocaleString()} of ${(100 * (isInc() ? INC.years.length : years.length)).toLocaleString()}): WID shows exactly 0.00%`;
+    drawTiers();
+    updateSlice(); draw(); save();
+  }
+
+  // ---------- methodology text from the data
+  const cpiB = W.macro[base].cpi_u, pceB = W.macro[base].pce_price_index;
+  document.getElementById("m-real").textContent =
+    `Nominal value × (${base} price level ÷ that year's price level). CPI-U uses the annual average of the BLS CPI-U; PCE uses the BEA chain-type PCE price index. Both are in ${base} dollars.`;
+  const ext = Object.entries(W.dfa_quarter_used).map(([y, q]) => `${y} (Fed data through ${q})`).join(", ");
+  document.getElementById("m-gaps").textContent =
+    `WID publishes every 1% bin through ${years.find(y => W.tier[y] === "extended_dfa") - 1}. For ${ext}, each bin is scaled by how much its Fed DFA group (bottom 50%, 50–90, 90–99, top 1%) changed since then, and the 100 bins are rescaled to add up to 100%. ` +
+    Object.entries(W.year_notes).map(([y, ns]) => `${y}: ${ns.join(" ")}`).join(" ");
+  const gapCheck = V && V.code_checks.find(c => c.check.startsWith("Cross-source"));
+  if (gapCheck) { const m = gapCheck.detail.match(/([+-][\d.]+) pp/); if (m) document.getElementById("m-gap").textContent = Math.abs(+m[1]).toFixed(0); }
+
+  // ---------- verification
+  function renderVerification() {
+    const checks = document.getElementById("checks"), jev = document.getElementById("jev");
+    if (!V) { checks.innerHTML = `<tr><td colspan="3" class="muted">Run scripts/verify.py to generate data/verification.js.</td></tr>`; return; }
+    checks.innerHTML = V.code_checks.map(c =>
+      `<tr><td>${c.check}</td><td><span class="status ${c.info ? "" : c.ok ? "ok" : "fail"}">${c.info ? "ⓘ Info" : c.ok ? "✓ Pass" : "✕ Fail"}</span></td><td class="muted">${c.detail}</td></tr>`).join("");
+    const intro = document.getElementById("jev-intro");
+    if (V.jev.status === "not_run") {
+      intro.innerHTML = `Not run yet: ${V.jev.reason}. These checks ask Jev whether each claim this page makes about a series (definition, population, units) is backed by that source's own documentation. The arithmetic is checked in code above. To run them: set <code>TYPESAFE_API_KEY</code>, then run <code>python3 scripts/verify.py</code>.`;
+      document.getElementById("jev-wrap").style.display = "none";
+      return;
+    }
+    const passed = V.jev.results.filter(r => r.status === "pass").length;
+    const explained = V.jev.results.filter(r => r.status === "explained").length;
+    const waiting = V.jev.results.filter(r => r.status === "pending").length;
+    intro.innerHTML = (waiting ? `<strong>${waiting} claim(s) not yet checked</strong> (${V.jev.reason}); rerun <code>python3 scripts/verify.py</code> with <code>TYPESAFE_API_KEY</code> set. ` : "") +
+      `Model <code>${V.jev.model}</code>. Each claim is checked against the source's own documentation. Rows marked “control” are deliberately wrong claims; they pass only if Jev catches them. Verdicts below ${V.jev.auto_accept} confidence are marked for review. Hover a verdict to see its probabilities. ${passed}/${V.jev.results.length} passed${explained ? `; ${explained} disputed only because of the source's wording (explained in the row)` : ""}.`;
+    const label = { pass: ["ok", "✓ Pass"], fail: ["fail", "✕ Fail"], review: ["review", "△ Review"], pending: ["", "… Pending"], explained: ["", "ⓘ Explained"] };
+    jev.innerHTML = V.jev.results.map(r => {
+      const [cls, txt] = label[r.status];
+      const note = r.note ? `<div class="muted" style="margin-top:4px">${r.note}</div>` : "";
+      if (r.status === "pending")
+        return `<tr><td>${r.claim}${r.control ? ' <span class="muted">(control)</span>' : ""}</td><td class="muted">${r.source}</td><td class="muted">—</td><td class="num muted">—</td><td><span class="status muted">${txt}</span></td></tr>`;
+      return `<tr><td>${r.claim}${r.control ? ' <span class="muted">(control)</span>' : ""}${note}</td><td class="muted">${r.source}</td><td title="${Object.entries(r.probabilities).map(([k, v]) => `${k.replace("_", " ")} ${(v * 100).toFixed(0)}%`).join(" · ")}">${r.verdict.replace("_", " ")}</td><td class="num">${r.confidence.toFixed(2)}</td><td><span class="status ${cls}">${txt}</span></td></tr>`;
+    }).join("");
+  }
+
+  document.getElementById("m-scf").textContent =
+    `These come from the Fed's Survey of Consumer Finances (${SV[0]}–${SV[SV.length - 1]}, every three years), which records each surveyed household's net worth, race, household type and holdings. ` +
+    `In each survey, households are ranked by net worth and split into 100 groups of equal size, weighted to represent all US households. ` +
+    `Gender is by household type: couples (married or living with a partner) and single women and single men, because the survey can't split a couple's wealth between partners. ` +
+    `Race is the survey's four groups. Location of money splits total assets into seven kinds of holding, with debt shown separately. ` +
+    `Work sector is the reference person's occupation (managerial or professional; technical, sales and services; production, labor and farming; not working) or work status (works for someone else; self-employed; retired, disabled, or not working at 65 or older; not working, mostly under 65); the public survey files don't break out industries in more detail. ` +
+    `With Wealth selected, households are ranked by net worth; with Income selected, by total income. ` +
+    `Years between surveys are interpolated in a straight line, and years outside ${SV[0]}–${SV[SV.length - 1]} use the nearest survey; both are drawn faded. ` +
+    `Each percentile holds only a few dozen surveyed households, so single percentiles are noisy: the averaging options pool neighbouring years and percentiles. ` +
+    `These breakdowns rank households by the survey's own net worth, so they won't match the 3-D chart (WID, adults) exactly.`;
+  const nEst = W.estimated.flat().reduce((a, b) => a + b, 0);
+  document.getElementById("key-guess").textContent =
+    `Estimated (${nEst.toLocaleString()} of ${(100 * years.length).toLocaleString()}): WID shows exactly 0.00%`;
+
+  drawTiers(); renderVerification(); update();
+  const mq = matchMedia("(prefers-color-scheme: dark)");
+  mq.addEventListener("change", () => { drawTiers(); draw(); });
+  new MutationObserver(() => { drawTiers(); draw(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+data/raw/
+data/jev_cache.json
+.DS_Store
+.claude/settings.local.json

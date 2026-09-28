@@ -1,0 +1,70 @@
+# US wealth distribution, 1950–now (3-D)
+
+`index.html` shows US net worth (1950–2026) or pre-tax income (1950–2024, WID `sptincj992`) for each
+1-percentile group, as 3-D pillars or a surface
+(year × percentile × value), with five views: share of wealth, nominal dollars per
+household, real dollars (CPI-U), real dollars (PCE price index), and years of consumer spending.
+"Years shown" limits the year range. A slicer cuts the chart by year (all percentiles in one year) or by percentile (one group across
+all years), shows that slice as a flat bar chart with a summary table, and can hide everything past it.
+Under the slicer, "Show" switches the flat chart between Wealth and three breakdowns from the Fed's
+Survey of Consumer Finances (1989–2022, every three years): Gender (couples, single women, single men),
+Race, Location of money (what assets are held in), and Work sector (occupation or work status). With the
+Income measure selected, these rank households by income instead of net worth. Clicking a bar opens a panel for that year and
+percentile, with options to average over neighbouring years and percentiles.
+
+## Run
+
+```bash
+python3 -m http.server 8765
+```
+
+Then open http://localhost:8765. Opening `index.html` directly also works; it only needs internet access for Plotly and the font.
+
+## Rebuild the data
+
+```bash
+python3 scripts/fetch_data.py    # WID US file, Fed DFA, FRED series + their documentation -> data/raw/
+python3 scripts/build_data.py    # -> data/wealth.json, data/wealth.js (and data/gender_wid.json, not shown on the page)
+python3 scripts/build_scf.py     # -> data/scf.json, data/scf.js
+python3 scripts/verify.py        # -> data/verification.json, data/verification.js
+```
+
+Python 3.9+ standard library only. `fetch_data.py` pulls just the US files out of WID's 880 MB bulk zip using HTTP range requests.
+
+## Sources
+
+| Input | Source | Years |
+|---|---|---|
+| Wealth share per 1% bin | WID.world `shwealj992` (Saez–Zucman DINA) | 1950–2024 |
+| Group shares used to extend and cross-check | Fed Distributional Financial Accounts | 1989–2026 Q2 |
+| Total household net worth | Fed Z.1 via FRED `TNWBSHNO` | 1945– |
+| Income share per 1% bin | WID.world `sptincj992` (pre-tax national income) | 1950–2024 |
+| National income | BEA via FRED `A032RC1A027NBEA` | 1929– |
+| Households | Census via FRED `TTLHH` | 1940– |
+| CPI-U | BLS via FRED `CPIAUCNS` | 1913– |
+| PCE price index | BEA via FRED `DPCERG3A086NBEA`, `PCEPI` | 1929– |
+| Consumer spending | BEA via FRED `PCECA`, `PCE` | 1929– |
+| Gender, race, holdings by percentile | Fed Survey of Consumer Finances, summary extract | 1989–2022, triennial |
+
+## Verification and Jev
+
+`verify.py` has two parts:
+
+1. **Code checks.** Every number is re-derived from the raw files: all 7,500 WID cells, bin sums against WID's own aggregates, the Fed DFA extension, FRED inputs, and the dollar formula for every cell.
+2. **Meaning checks by Jev (TypeSafe).** For each series, Jev reads the source's own documentation and says whether it *supports*, *contradicts* or *does not address* the claim the page makes: definition, population and units. Two control claims are deliberately wrong (households instead of adults; billions instead of millions), so a passing run shows the checker catches that kind of mistake. Arithmetic stays in code, as TypeSafe's docs recommend.
+
+The Jev checks need an API key:
+
+```bash
+export TYPESAFE_API_KEY=...
+python3 scripts/verify.py
+```
+
+Responses are cached in `data/jev_cache.json`. The page shows the results in its Verification section.
+
+## Caveats
+
+- WID ranks **adults** aged 20+, with each couple's wealth split equally, not households. Its shares are applied to household totals, because it is the only 1-percentile source back to 1950. The Fed's household-based data puts the top 1% about 5 points lower.
+- 1950–1961 are WID estimates built from income-tax trends. 2023–2024 are WID preliminary estimates (nowcasts). 2025–2026 are extended here from Fed DFA group changes. 2026 is a partial year.
+- 2025 CPI-U averages 11 months, because BLS published no October 2025 CPI.
+- WID rounds each share to 0.01% of total wealth, so 350 of the 7,700 cells come out as exactly 0.00%. Those are estimated by interpolating between the nearest published neighbours (or, at the very bottom, extending the next 20 bins' trend). They're capped at ±0.0045% so they still round to WID's 0, and are drawn **grey** on the page. `verify.py` checks that every estimate replaces a published 0 and still rounds back to it.
