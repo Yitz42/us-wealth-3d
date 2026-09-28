@@ -58,6 +58,10 @@ CLAIMS = {
          "Occupation groups are managerial or professional; technical, sales or services; other work such as production, labor or farming; and not working."),
         ("scf_work_status", "supports",
          "Work status groups are: working for someone else; self-employed or in a partnership; retired or disabled, plus anyone else not working who is 65 or older; and other people not working, mainly under 65."),
+        ("scf_age", "supports", "The age recorded for a household is the age of its reference person."),
+        # The page regroups AGE into the Fed DFA's ranges, which needs AGE to be a plain number, not a class code.
+        ("scf_age_numeric", "supports", "AGE holds the age itself as a number; the survey's age classes are then cut from it at 35, 45, 55, 65 and 75."),
+        ("control_scf_age_oldest", "contradicts", "The age recorded for a household is the age of its oldest member."),
     ],
     "TNWBSHNO": [
         ("z1_networth", "supports",
@@ -245,6 +249,7 @@ def code_checks(w):
     record("SCF: the seven holding types add up to total assets", worst_hold < 1e-6,
            f"largest relative gap {worst_hold:.1e} (bins with over $1M of weighted assets)")
     record("SCF households vs Census count", True, "SCF weighted households vs FRED TTLHH: " + ", ".join(hh_gap), info=True)
+    checks.extend(age_checks(w, scf))
 
     # 8. pre-tax income (WID sptincj992): same exactness checks as wealth
     inc = w["income"]
@@ -288,6 +293,87 @@ def code_checks(w):
 
     record("Cross-source: WID vs Fed top-1% share", True,
            f"WID is on average {avg:+.1f} pp vs Fed DFA over {diffs[0][0]}-{diffs[-1][0]} (adults vs households; expected)", info=True)
+    return checks
+
+
+def age_checks(w, scf):
+    """The age selector: age groups re-derived from the raw SCF files, and the trim fractions the page applies."""
+    checks = []
+
+    def record(name, ok, detail, info=False):
+        checks.append({"check": name, "ok": bool(ok), "detail": detail, "info": info})
+
+    ages = [a for a, _ in scf["categories"]["age"]]
+    bounds = {"age_u40": (0, 40), "age_40_54": (40, 55), "age_55_69": (55, 70), "age_70p": (70, 999)}
+    assert list(bounds) == ages, "age groups changed; update bounds"
+
+    # 1. each age group's sums add up to the bin's; households by age add up to the bin's households
+    worst = 0.0
+    for F in scf["rankings"].values():
+        for si in range(len(scf["surveys"])):
+            for b in range(100):
+                for k in ("w", "n", "networth", "income", "assets", "debt"):
+                    worst = max(worst, abs(sum(F["by_age"][a][k][si][b] for a in ages) - F[k][si][b]))
+                worst = max(worst, abs(sum(F[a][si][b] for a in ages) - F["w"][si][b]))
+    record("SCF: age groups add up to each bin", worst <= 3,  # each stored sum is rounded to a whole unit
+           f"households, net worth, income, assets and debt, both rankings; largest gap {worst:.0f} (stored sums are rounded to whole units)")
+
+    # 2. the age groups, re-derived from the raw files (AGE of the reference person), match the stored sums
+    worst_rel = 0.0
+    for si, year in enumerate(scf["surveys"]):
+        with open(RAW / "scf" / f"SCFP{year}.csv", newline="") as f:
+            rows = csv.reader(f)
+            head = next(rows)
+            ia, iw, inw = head.index("AGE"), head.index("WGT"), head.index("NETWORTH")
+            hh_age, nw_age = defaultdict(float), defaultdict(float)
+            for r in rows:
+                age = int(r[ia])
+                a = next(g for g, (lo, hi) in bounds.items() if lo <= age < hi)
+                hh_age[a] += float(r[iw])
+                nw_age[a] += float(r[iw]) * float(r[inw])
+        F = scf["rankings"]["wealth"]
+        for a in ages:
+            worst_rel = max(worst_rel, abs(sum(F[a][si]) - hh_age[a]) / hh_age[a],
+                            abs(sum(F["by_age"][a]["networth"][si]) - nw_age[a]) / abs(nw_age[a]))
+    record("SCF: age groups match the raw survey files", worst_rel < 1e-6,
+           f"{len(scf['surveys'])} surveys, households and net worth for under 40, 40-54, 55-69 and 70+ recomputed from AGE; "
+           f"largest relative gap {worst_rel:.1e}")
+
+    # 3. trim fractions: recomputed from the stored sums with the same rule, each bin's add up to 1
+    worst_frac, worst_sum, n_fb = 0.0, 0.0, 0
+    for name, key in (("wealth", "networth"), ("income", "income")):
+        F, T = scf["rankings"][name], scf["age_trim"][name]
+        for si in range(len(scf["surveys"])):
+            for b in range(100):
+                parts, total = [F["by_age"][a][key][si][b] for a in ages], F[key][si][b]
+                same_sign = total and all(v == 0 or (v > 0) == (total > 0) for v in parts)
+                expect = [v / total for v in parts] if same_sign else [F[a][si][b] / F["w"][si][b] for a in ages]
+                n_fb += not same_sign
+                worst_frac = max(worst_frac, *(abs(T[a][si][b] - e) for a, e in zip(ages, expect)))
+                worst_sum = max(worst_sum, abs(sum(T[a][si][b] for a in ages) - 1))
+    stored_fb = sum(sum(v) for v in scf["age_trim_fallback"].values())
+    record("SCF: age trim fractions follow from the survey sums", worst_frac < 1e-3 and worst_sum < 1e-3 and n_fb == stored_fb,
+           f"2 rankings x {len(scf['surveys'])} surveys x 100 bins; largest difference {worst_frac:.1e}, "
+           f"each bin's four fractions add to 1 within {worst_sum:.1e}; {n_fb} bins split by household share (near-zero, mixed-sign sums)")
+
+    # informational: the page's age-group share of all wealth vs the Fed DFA's (both from the SCF, different ranking and totals)
+    dfa = defaultdict(lambda: defaultdict(list))
+    with open(RAW / "dfa" / "dfa-age-shares.csv") as f:
+        for r in csv.DictReader(f):
+            dfa[int(r["Date"][:4])][r["Category"]].append(float(r["Net worth"]))
+    dfa_key = {"age_u40": "ageunder40", "age_40_54": "age40to54", "age_55_69": "age55to69", "age_70p": "age70plus"}
+    share, years = w["measures"]["share"], w["years"]
+    gaps = defaultdict(list)
+    for si, year in enumerate(scf["surveys"]):
+        j = years.index(year)
+        for a in ages:
+            page = sum(share[b][j] * scf["age_trim"]["wealth"][a][si][b] for b in range(100))
+            gaps[a].append(page - statistics.mean(dfa[year][dfa_key[a]]))
+    labels = dict(scf["categories"]["age"])
+    record("Cross-source: age groups' share of wealth vs Fed DFA", True,
+           "page minus DFA, average over the " + str(len(scf["surveys"])) + " survey years: "
+           + ", ".join(f"{labels[a]} {statistics.mean(g):+.1f} pp (range {min(g):+.1f} to {max(g):+.1f})" for a, g in gaps.items())
+           + ". The page splits WID's adult-based bins by the survey's age mix; DFA uses household totals", info=True)
     return checks
 
 

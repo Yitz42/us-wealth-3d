@@ -8,8 +8,11 @@ household, real dollars (CPI-U), real dollars (PCE price index), and years of co
 all years), shows that slice as a flat bar chart with a summary table, and can hide everything past it.
 Under the slicer, "Show" switches the flat chart between Wealth and three breakdowns from the Fed's
 Survey of Consumer Finances (1989–2022, every three years): Gender (couples, single women, single men),
-Race, Location of money (what assets are held in), and Work sector (occupation or work status). With the
-Income measure selected, these rank households by income instead of net worth. Clicking a bar opens a panel for that year and
+Race, Location of money (what assets are held in), Work sector (occupation or work status), and Age of the
+household head. With the Income measure selected, these rank households by income instead of net worth.
+"Age of household head" (under 40, 40–54, 55–69, 70 and over: the Fed DFA's groups) trims the 3-D chart,
+the slice and its table to the part of each 1% group held by that age group, 1989 onward, and limits the
+Show breakdowns to households of that age. Percentiles still rank all ages. Clicking a bar opens a panel for that year and
 percentile, with options to average over neighbouring years and percentiles.
 
 ## Run
@@ -67,4 +70,9 @@ Responses are cached in `data/jev_cache.json`. The page shows the results in its
 - WID ranks **adults** aged 20+, with each couple's wealth split equally, not households. Its shares are applied to household totals, because it is the only 1-percentile source back to 1950. The Fed's household-based data puts the top 1% about 5 points lower.
 - 1950–1961 are WID estimates built from income-tax trends. 2023–2024 are WID preliminary estimates (nowcasts). 2025–2026 are extended here from Fed DFA group changes. 2026 is a partial year.
 - 2025 CPI-U averages 11 months, because BLS published no October 2025 CPI.
+- The age split comes from the SCF: each age group's share of every 1% group's net worth (or income),
+  interpolated between surveys, held at 2022 after that, and unavailable before 1989. It is applied to
+  WID's adult-based bins, so an age group's total can differ from the Fed DFA's figure by a few points
+  (see the Verification section). Bins where age groups' net worth has mixed signs are split by
+  household share instead. Single pillars are noisy: each age group has only a few surveyed households per bin.
 - WID rounds each share to 0.01% of total wealth, so 350 of the 7,700 cells come out as exactly 0.00%. Those are estimated by interpolating between the nearest published neighbours (or, at the very bottom, extending the next 20 bins' trend). They're capped at ±0.0045% so they still round to WID's 0, and are drawn **grey** on the page. `verify.py` checks that every estimate replaces a published 0 and still rounds back to it.

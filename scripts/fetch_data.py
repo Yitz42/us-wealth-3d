@@ -70,6 +70,7 @@ def scf_doc():
         "race": around("racecl4 1=white", before=0, after=1),
         "work_status": around("work status categories for reference person", before=0, after=4),
         "occupation": around("occupation classification for reference person", before=0, after=3),
+        "age": around("AGE=X14;", before=2, after=1),
         "total_assets": around("ASSET=FIN+NFIN", before=1, after=0),
         "net_worth": around("NETWORTH=ASSET-DEBT", before=1, after=0),
     }

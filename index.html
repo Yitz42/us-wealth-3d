@@ -58,6 +58,7 @@
   }
 
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }  /* .seg, .chart-key and .stackbar set display, which would override it */
   body {
     margin: 0; background: var(--surface-0); color: var(--text-primary);
     font: 15px/1.55 Inter, system-ui, -apple-system, sans-serif;
@@ -144,7 +145,7 @@
 <main>
   <header>
     <h1 id="page-title">Who owns America's wealth, 1950–2026</h1>
-    <p><span id="page-sub">Household net worth</span> broken down into 100 one-percent groups, every year since 1950. Drag to rotate, hover for values, zoom with the chart toolbar.</p>
+    <p><span id="page-sub">Household net worth</span> broken down into 100 one-percent groups, <span id="page-since">every year since 1950</span>. Drag to rotate, hover for values, zoom with the chart toolbar.</p>
   </header>
 
   <div class="card viz">
@@ -155,6 +156,10 @@
           <button data-measure="wealth" aria-pressed="true">Wealth</button>
           <button data-measure="income" aria-pressed="false">Income</button>
         </div>
+      </div>
+      <div class="control">
+        <span class="label" id="age-label">Age of household head</span>
+        <div class="seg" role="group" aria-labelledby="age-label" id="age-seg"></div>
       </div>
       <div class="control">
         <span class="label" id="view-label">View</span>
@@ -223,6 +228,7 @@
           <button data-bd="race" aria-pressed="false">Race</button>
           <button data-bd="holdings" aria-pressed="false">Location of money</button>
           <button data-bd="sector" aria-pressed="false">Work sector</button>
+          <button data-bd="age" aria-pressed="false">Age</button>
         </div>
         <div class="seg" role="group" aria-label="Work sector grouping" id="sector-seg" hidden>
           <button data-sector="occupation" aria-pressed="true">Occupation</button>
@@ -324,7 +330,9 @@
         <dd id="m-guess">WID publishes each group's share rounded to 0.01% of all wealth. Groups holding almost nothing, or owing almost as much as they own, come out as exactly 0.00%, which hides both their size and whether they are in debt. Each run of these zeros is estimated by drawing a straight line between the nearest published groups on either side; wealth always rises with rank, so the line stays in order. A run at the very bottom (in the 1950s) is extended from the trend of the next 20 groups. Every estimate stays within ±0.0045%, so it still rounds to WID's 0.00%.</dd>
         <dt>Income</dt>
         <dd>The Income measure is WID's pre-tax national income for each 1% group, 1950–2024: wages plus business and investment income, before taxes and transfers, with pensions counted when they are paid out. It is broader than salary alone. Dollar views apply these shares to US national income (BEA) per household, the same way wealth shares are applied to household net worth. Groups WID rounds to exactly 0.00% are estimated in grey, as for wealth. There is no 1% income data after 2024 yet.</dd>
-        <dt>Gender, race, location of money and work sector</dt>
+        <dt>Age of household head</dt>
+        <dd id="m-age"></dd>
+        <dt>Gender, race, location of money, work sector and age</dt>
         <dd id="m-scf"></dd>
         <dt>Stair-steps near zero</dt>
         <dd>Because of that 0.01% rounding, the groups just above and below zero jump between a few rounded values, which shows up as steps in the Log view.</dd>
@@ -357,7 +365,7 @@
 
 <script>
 (() => {
-  const W = window.WEALTH, V = window.VERIFICATION;
+  const W = window.WEALTH, V = window.VERIFICATION, S = window.SCF, SV = S.surveys;
   const years = W.years, base = W.base_year;
 
   const VIEWS = {
@@ -385,8 +393,10 @@
                   y0: years[0], y1: years[years.length - 1],
                   measure: "wealth", sector: "occupation",
                   breakdown: "wealth", avgY: 0, avgP: 0, cellYear: years[years.length - 1], cellPct: 100,
-                  sliceAxis: "year", year: years[years.length - 1], pct: 100, cut: false };
+                  sliceAxis: "year", year: years[years.length - 1], pct: 100, cut: false, age: "all" };
   try { Object.assign(state, JSON.parse(localStorage.getItem("wealth3d") || "{}")); } catch (e) {}
+  const AGES = S.categories.age;  // [key, label], the Fed DFA's age groups
+  if (!AGES.some(([k]) => k === state.age)) state.age = "all";
   const save = () => { try { localStorage.setItem("wealth3d", JSON.stringify(state)); } catch (e) {} };
 
   // Axis title for the current view and population.
@@ -398,8 +408,11 @@
     real_pce: [`Avg pre-tax income per household (${base} $, PCE)`, `Adjusted for inflation with the BEA PCE price index, in ${base} dollars.`],
     spend_years: ["Income ÷ avg household spending (years)", "Each group's average income divided by consumer spending per household (PCE ÷ households). 1 means it matches average spending."],
   };
-  const zTitle = view => isInc() ? INCOME_TEXT[state.view][0] : view.z;
-  const viewNote = () => isInc() ? INCOME_TEXT[state.view][1] : VIEWS[state.view].note;
+  const zTitle = view => (isInc() ? INCOME_TEXT[state.view][0] : view.z) + (ageOn() ? ` · head ${ageLabel()}` : "");
+  // With an age chosen, keep only the note's first sentence: the rest describes the all-ages shape.
+  const viewNote = () => (isInc() ? INCOME_TEXT[state.view][1] : VIEWS[state.view].note).replace(ageOn() ? /(?<=\.) .*$/ : /$^/, "") + (!ageOn() ? "" :
+    ` Showing only the part ${isInc() ? "received" : "held"} by households whose head is ${ageLabel()}, ${SV[0]} onward (Survey of Consumer Finances). ` +
+    `Percentiles still rank all ages, and dollar values divide that part by every household in the group, so the four age groups add up to the full chart.`);
   function money(v) {
     const a = Math.abs(v), s = v < 0 ? "−$" : "$";
     if (a >= 1e9) return `${s}${(a / 1e9).toFixed(2)}B`;
@@ -420,7 +433,15 @@
     b.textContent = v.label; b.dataset.view = k;
     seg.appendChild(b);
   }
+  const ageSeg = document.getElementById("age-seg");
+  for (const [k, label] of [["all", "All ages"], ...AGES]) {
+    const b = document.createElement("button");
+    b.textContent = label; b.dataset.age = k;
+    ageSeg.appendChild(b);
+  }
+  ageSeg.addEventListener("click", e => { if (e.target.dataset.age) { state.age = e.target.dataset.age; update(); } });
   function syncButtons() {
+    ageSeg.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.age === state.age));
     seg.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.view === state.view));
     document.querySelectorAll("#scale-seg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.scale === state.scale));
     document.querySelectorAll("#shape-seg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.shape === state.shape));
@@ -431,7 +452,9 @@
     document.getElementById("sector-seg").hidden = state.breakdown !== "sector";
     document.getElementById("bd-value").textContent = isInc() ? "Income" : "Wealth";
     seg.querySelector('[data-view="share"]').textContent = isInc() ? "Share of income" : "Share of wealth";
-    document.getElementById("page-sub").textContent = isInc() ? "Pre-tax income" : "Household net worth";
+    document.getElementById("page-sub").textContent = (isInc() ? "Pre-tax income" : "Household net worth") +
+      (ageOn() ? ` ${isInc() ? "received" : "held"} by households whose head is ${ageLabel()},` : "");
+    document.getElementById("page-since").textContent = effRange()[0] === years[0] ? "every year since 1950" : `every year since ${effRange()[0]}`;
     document.getElementById("key-more").textContent = isInc() ? "More income" : "More wealth";
     document.getElementById("key-less").textContent = isInc() ? "Less income" : "Less wealth";
     document.getElementById("key-neg").textContent = isInc() ? "Negative income" : "Net debt";
@@ -461,13 +484,42 @@
   // Year indices inside the chosen range.
   // Wealth or income: same 1% bins, different WID series. Income stops at WID's last year.
   const INC = W.income, isInc = () => state.measure === "income";
-  const M = () => isInc() ? INC.measures : W.measures;
+  const baseM = () => isInc() ? INC.measures : W.measures;
+  // ---------- age: trim every bin to the part one age group accounts for
+  const ageOn = () => state.age !== "all";
+  const ageLabel = () => { const l = AGES.find(([k]) => k === state.age)[1]; return /^\d/.test(l) ? `aged ${l}` : l.toLowerCase(); };
+  // fracs[p-1][j]: the age group's part of bin p in year j (share of the bin's net worth, or of its
+  // income for the Income measure; see scripts/build_scf.py). Straight-line between surveys,
+  // the last survey's mix after it, nothing before the first.
+  const fracCache = {}, trimCache = {};
+  function ageFracs() {
+    const key = `${state.measure}|${state.age}`;
+    if (fracCache[key]) return fracCache[key];
+    const T = S.age_trim[state.measure][state.age], last = SV.length - 1;
+    return fracCache[key] = Array.from({ length: 100 }, (_, i) => years.map(y => {
+      if (y < SV[0]) return null;
+      if (y >= SV[last]) return T[last][i];
+      const i1 = SV.findIndex(v => v >= y);
+      if (SV[i1] === y) return T[i1][i];
+      const f = (y - SV[i1 - 1]) / (SV[i1] - SV[i1 - 1]);
+      return T[i1 - 1][i] * (1 - f) + T[i1][i] * f;
+    }));
+  }
+  function M() {
+    if (!ageOn()) return baseM();
+    const key = `${state.measure}|${state.age}`;
+    if (trimCache[key]) return trimCache[key];
+    const fr = ageFracs();
+    return trimCache[key] = Object.fromEntries(Object.entries(baseM()).map(([view, rows]) =>
+      [view, rows.map((r, i) => r.map((v, j) => v == null || fr[i][j] == null ? null : v * fr[i][j]))]));
+  }
   const tierOf = y => isInc() ? INC.tier[y] : W.tier[y];
   const isGrey = (p, j) => (isInc() ? INC.estimated : W.estimated)[p - 1][j] === 1;
   function effRange() {
-    if (!isInc()) return [state.y0, state.y1];
-    const a = Math.max(state.y0, INC.years[0]), b = Math.min(state.y1, INC.years[INC.years.length - 1]);
-    return a <= b ? [a, b] : [INC.years[0], INC.years[INC.years.length - 1]];
+    const first = Math.max(isInc() ? INC.years[0] : years[0], ageOn() ? SV[0] : -Infinity);
+    const last = isInc() ? INC.years[INC.years.length - 1] : years[years.length - 1];
+    const a = Math.max(state.y0, first), b = Math.min(state.y1, last);
+    return a <= b ? [a, b] : [first, last];
   }
   const inYears = j => { const [a, b] = effRange(); return years[j] >= a && years[j] <= b; };
   const yearIdx = () => years.map((_, j) => j).filter(inYears);
@@ -569,6 +621,7 @@
 
   const hoverLine = (p, j, v, view) => v == null ? "" :
     `<b>${years[j]}</b> · ${ordinal(p - 1)}–${ordinal(p)} percentile<br>${view.fmt(v)}` +
+    (ageOn() ? `<br>Head ${ageLabel()}: ${(ageFracs()[p - 1][j] * 100).toFixed(0)}% of this group's ${isInc() ? "income" : "wealth"} (all ages: ${view.fmt(baseM()[state.view][p - 1][j])})` : "") +
     (isGrey(p, j) ? "<br><span style='font-size:11px'>Estimated: WID shows exactly 0.00%</span>" : "") +
     `<br><span style='font-size:11px'>${TIERS[tierOf(years[j])].label}</span>`;
 
@@ -746,8 +799,9 @@
   }
 
   // ---------- SCF breakdowns: who is in each percentile, and what they hold
-  const S = window.SCF, SV = S.surveys;
-  const SF = () => S.rankings[isInc() ? "income" : "wealth"];  // rank households by net worth or by income
+  // Rank households by net worth or by income; with an age chosen, count only that age group
+  // (the Age breakdown itself always covers every age).
+  const SF = () => { const F = S.rankings[isInc() ? "income" : "wealth"]; return ageOn() && group() !== "age" ? F.by_age[state.age] : F; };
   const group = () => state.breakdown === "sector" ? state.sector : state.breakdown;
   const BD = {
     gender: { denom: "w", title: "Household type", unit: "households" },
@@ -755,7 +809,10 @@
     holdings: { denom: "assets", title: "What the assets are held in", unit: "assets" },
     occupation: { denom: "w", title: "Occupation", unit: "households" },
     work: { denom: "w", title: "Work status", unit: "households" },
+    age: { denom: "w", title: "Age of household head", unit: "households" },
   };
+  // Who the breakdown counts, for titles and notes.
+  const bdWho = () => !ageOn() ? "" : group() !== "age" ? `, households headed by someone ${ageLabel()}` : ", all ages";
   const catColor = i => css(`--cat-${i + 1}`);
   // Weighted sums over percentiles pLo..pHi in survey si.
   function sums(si, keys, pLo, pHi) {
@@ -842,6 +899,7 @@
       bigEl.hidden = false; bar.hidden = true; tbody.innerHTML = "";
       bigEl.textContent = c ? view.fmt(t / c) : "—";
       note.textContent = `${isInc() ? "Pre-tax income" : "Wealth"}, ${view.label}${state.view === "share" ? "" : ", average per household"}. ${TIERS[tierOf(yr)].label}.` +
+        (ageOn() ? ` Only the part ${isInc() ? "received" : "held"} by households headed by someone ${ageLabel()}: ${(ageFracs()[p - 1][years.indexOf(yr)] * 100).toFixed(0)}% of this group's ${isInc() ? "income" : "wealth"} in ${yr}. ${ageYearNote(yr)}` : "") +
         (est ? ` ${est} of ${c} values in this window are grey estimates.` : "");
       return;
     }
@@ -854,13 +912,15 @@
       (g === "holdings" ? `<tr><td>Average assets per household</td><td class="num">${money(r.assetsPerHh)} (2022 dollars)</td></tr>
         <tr><td>Debt</td><td class="num">${(r.debtRatio * 100).toFixed(0)}% of assets</td></tr>` : "");
     const surveys = r.surveys.join(", ");
-    note.textContent = `Survey of Consumer Finances ${surveys}, ${r.n.toLocaleString()} surveyed households, ranked by ${isInc() ? "income" : "net worth"}.` +
+    note.textContent = `Survey of Consumer Finances ${surveys}, ${r.n.toLocaleString()} surveyed households${ageOn() && g !== "age" ? ` headed by someone ${ageLabel()}` : ""}, ranked by ${isInc() ? "income" : "net worth"} against all ages.` +
       (r.outside ? ` No survey in ${yr}; showing the nearest (${surveys}).` : r.interp ? " Years between surveys are interpolated." : "") +
       (r.n < 100 ? " Small sample: widen the average for a steadier estimate." : "");
   }
   const avgYIn = document.getElementById("avg-y"), avgPIn = document.getElementById("avg-p");
   avgYIn.addEventListener("change", () => { state.avgY = +avgYIn.value; save(); redrawSlice(); updateCell(); });
   avgPIn.addEventListener("change", () => { state.avgP = +avgPIn.value; save(); redrawSlice(); updateCell(); });
+
+  const ageYearNote = y => `Age split from the ${SV.includes(y) ? `${y} survey` : y > SV[SV.length - 1] ? `${SV[SV.length - 1]} survey (latest)` : "surveys either side, interpolated"}.`;
 
   // ---------- slice table
   const pctName = p => `${ordinal(p - 1)}–${ordinal(p)}`;
@@ -886,8 +946,8 @@
       const p = state.pct, vals = M()[state.view][p - 1], shares = M().share[p - 1];
       document.getElementById("slice-out").textContent = pctName(p);
       document.getElementById("slice-title").textContent = bd
-        ? `${BD[group()].title}: the ${pctName(p)} ${isInc() ? "income" : "wealth"} percentile, ${Math.max(state.y0, SV[0])}–${Math.min(state.y1, SV[SV.length - 1])} (surveys every 3 years)`
-        : `The ${pctName(p)} percentile, ${state.y0}–${state.y1}`;
+        ? `${BD[group()].title}${bdWho()}: the ${pctName(p)} ${isInc() ? "income" : "wealth"} percentile, ${Math.max(state.y0, SV[0])}–${Math.min(state.y1, SV[SV.length - 1])} (surveys every 3 years)`
+        : `The ${pctName(p)} percentile, ${effRange().join("–")}` + (ageOn() ? `: the part ${isInc() ? "received" : "held"} by households headed by someone ${ageLabel()}` : "");
       document.getElementById("col-a").textContent = "Year";
       const js = yearIdx(), pick = cmp => js.reduce((best, jj) => cmp(vals[jj], vals[best]) ? jj : best, js[0]);
       const lowJ = pick((a, b) => a < b), peakJ = pick((a, b) => a > b);
@@ -905,10 +965,10 @@
     document.getElementById("slice-out").textContent = state.year;
     const near = state.year < SV[0] ? SV[0] : state.year > SV[SV.length - 1] ? SV[SV.length - 1] : null;
     document.getElementById("slice-title").textContent = bd
-      ? `${BD[group()].title}, by ${isInc() ? "income" : "wealth"} percentile, ${state.year}` + (near ? ` (no survey that year; showing ${near})` : "")
-      : `All percentiles in ${state.year}`;
+      ? `${BD[group()].title}${bdWho()}, by ${isInc() ? "income" : "wealth"} percentile, ${state.year}` + (near ? ` (no survey that year; showing ${near})` : "")
+      : `All percentiles in ${state.year}` + (ageOn() ? `: the part ${isInc() ? "received" : "held"} by households headed by someone ${ageLabel()}` : "");
     document.getElementById("col-a").textContent = "Group";
-    for (const [name, lo, hi] of GROUPS) {
+    for (const [name, lo, hi] of ageOn() ? [...GROUPS, [`All percentiles (head ${ageLabel()})`, 0, 100]] : GROUPS) {
       let share = 0, val = 0;
       for (let i = lo; i < hi; i++) { share += M().share[i][j]; val += M()[state.view][i][j]; }
       const avg = isShare ? share : val / (hi - lo);
@@ -916,7 +976,7 @@
       tr.innerHTML = `<td>${name}</td><td class="num">${view.fmt(avg)}</td><td class="num">${share.toFixed(1)}%</td>`;
       body.appendChild(tr);
     }
-    const notes = [TIERS[tierOf(state.year)].label + "."].concat(W.year_notes[state.year] || []);
+    const notes = [TIERS[tierOf(state.year)].label + "."].concat(W.year_notes[state.year] || []).concat(ageOn() ? [ageYearNote(state.year)] : []);
     document.getElementById("slice-note").textContent = bd ? "" : notes.join(" ");
     updateCell();
   }
@@ -929,7 +989,8 @@
     document.getElementById("view-note").textContent = viewNote() +
       (isInc() && state.y1 > yb ? ` Income data runs to ${yb}.` : "");
     document.getElementById("page-title").textContent = isInc()
-      ? `Who earns America's income, ${INC.years[0]}–${INC.years[INC.years.length - 1]}` : `Who owns America's wealth, ${years[0]}–${years[years.length - 1]}`;
+      ? `Who earns America's income, ${Math.max(INC.years[0], ageOn() ? SV[0] : 0)}–${INC.years[INC.years.length - 1]}`
+      : `Who owns America's wealth, ${Math.max(years[0], ageOn() ? SV[0] : 0)}–${years[years.length - 1]}`;
     const est = (isInc() ? INC.estimated : W.estimated).flat().reduce((a, b) => a + b, 0);
     document.getElementById("key-guess").textContent =
       `Estimated (${est.toLocaleString()} of ${(100 * (isInc() ? INC.years.length : years.length)).toLocaleString()}): WID shows exactly 0.00%`;
@@ -980,11 +1041,20 @@
     `In each survey, households are ranked by net worth and split into 100 groups of equal size, weighted to represent all US households. ` +
     `Gender is by household type: couples (married or living with a partner) and single women and single men, because the survey can't split a couple's wealth between partners. ` +
     `Race is the survey's four groups. Location of money splits total assets into seven kinds of holding, with debt shown separately. ` +
+    `Age is the age of the survey's reference person (the household head), in the Fed's four age groups. With an age chosen above the chart, the other breakdowns count only households of that age. ` +
     `Work sector is the reference person's occupation (managerial or professional; technical, sales and services; production, labor and farming; not working) or work status (works for someone else; self-employed; retired, disabled, or not working at 65 or older; not working, mostly under 65); the public survey files don't break out industries in more detail. ` +
     `With Wealth selected, households are ranked by net worth; with Income selected, by total income. ` +
     `Years between surveys are interpolated in a straight line, and years outside ${SV[0]}–${SV[SV.length - 1]} use the nearest survey; both are drawn faded. ` +
     `Each percentile holds only a few dozen surveyed households, so single percentiles are noisy: the averaging options pool neighbouring years and percentiles. ` +
     `These breakdowns rank households by the survey's own net worth, so they won't match the 3-D chart (WID, adults) exactly.`;
+  const nFallback = Object.values(S.age_trim_fallback.wealth).reduce((a, b) => a + b, 0);
+  document.getElementById("m-age").textContent =
+    `The age selector shows only the part of each 1% group held by households whose head (the survey's reference person) is in one age group: under 40, 40–54, 55–69, or 70 and over, the Fed's own age groups in its Distributional Financial Accounts. ` +
+    `The split comes from the Survey of Consumer Finances: in each survey, households are ranked by net worth against all ages, and each age group's share of every 1% group's net worth is applied to the chart's value for that group. ` +
+    `For the Income measure, households are ranked by income and each age group's share of the group's income is used. ` +
+    `Years between surveys are interpolated in a straight line, ${SV[SV.length - 1] + 1} onward uses the ${SV[SV.length - 1]} survey, and there is no age split before ${SV[0]}. ` +
+    `In ${nFallback} of the ${SV.length * 100} wealth groups, some ages have positive net worth and others negative, so a share of the total would fall outside 0–100%; those groups are split by share of households instead. ` +
+    `Dollar values are the age group's part divided by every household in the 1% group, so the four age groups add up to the full chart. Each age group has only a few surveyed households per 1% group, so single pillars are noisy.`;
   const nEst = W.estimated.flat().reduce((a, b) => a + b, 0);
   document.getElementById("key-guess").textContent =
     `Estimated (${nEst.toLocaleString()} of ${(100 * years.length).toLocaleString()}): WID shows exactly 0.00%`;

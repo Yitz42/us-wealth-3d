@@ -67,6 +67,30 @@
    "info": true
   },
   {
+   "check": "SCF: age groups add up to each bin",
+   "ok": true,
+   "detail": "households, net worth, income, assets and debt, both rankings; largest gap 2 (stored sums are rounded to whole units)",
+   "info": false
+  },
+  {
+   "check": "SCF: age groups match the raw survey files",
+   "ok": true,
+   "detail": "12 surveys, households and net worth for under 40, 40-54, 55-69 and 70+ recomputed from AGE; largest relative gap 3.6e-07",
+   "info": false
+  },
+  {
+   "check": "SCF: age trim fractions follow from the survey sums",
+   "ok": true,
+   "detail": "2 rankings x 12 surveys x 100 bins; largest difference 5.0e-05, each bin's four fractions add to 1 within 1.0e-04; 13 bins split by household share (near-zero, mixed-sign sums)",
+   "info": false
+  },
+  {
+   "check": "Cross-source: age groups' share of wealth vs Fed DFA",
+   "ok": true,
+   "detail": "page minus DFA, average over the 12 survey years: Under 40 +0.6 pp (range -0.0 to +2.1), 40\u201354 +1.0 pp (range -0.4 to +2.3), 55\u201369 -2.2 pp (range -3.5 to -0.7), 70 and over +0.6 pp (range -0.4 to +1.2). The page splits WID's adult-based bins by the survey's age mix; DFA uses household totals",
+   "info": true
+  },
+  {
    "check": "Income: WID shares copied exactly",
    "ok": true,
    "detail": "7455/7455 published cells match; 45 cells WID rounded to 0 are estimated and still round to 0",
@@ -303,8 +327,8 @@
     "verdict": "supports",
     "confidence": 1.0,
     "probabilities": {
-     "contradicts": 0.0,
      "not_addressed": 0.0,
+     "contradicts": 0.0,
      "supports": 1.0
     },
     "status": "pass",
@@ -318,9 +342,9 @@
     "verdict": "supports",
     "confidence": 0.99,
     "probabilities": {
-     "contradicts": 0.01,
      "not_addressed": 0.0,
-     "supports": 0.99
+     "supports": 1.0,
+     "contradicts": 0.0
     },
     "status": "pass",
     "control": false
@@ -333,8 +357,8 @@
     "verdict": "supports",
     "confidence": 0.98,
     "probabilities": {
-     "contradicts": 0.01,
      "not_addressed": 0.0,
+     "contradicts": 0.01,
      "supports": 0.99
     },
     "status": "pass",
@@ -348,8 +372,8 @@
     "verdict": "contradicts",
     "confidence": 1.0,
     "probabilities": {
-     "contradicts": 1.0,
      "not_addressed": 0.0,
+     "contradicts": 1.0,
      "supports": 0.0
     },
     "status": "pass",
@@ -363,8 +387,8 @@
     "verdict": "supports",
     "confidence": 1.0,
     "probabilities": {
-     "contradicts": 0.0,
      "not_addressed": 0.0,
+     "contradicts": 0.0,
      "supports": 1.0
     },
     "status": "pass",
@@ -378,12 +402,57 @@
     "verdict": "supports",
     "confidence": 1.0,
     "probabilities": {
-     "contradicts": 0.0,
      "not_addressed": 0.0,
+     "contradicts": 0.0,
      "supports": 1.0
     },
     "status": "pass",
     "control": false
+   },
+   {
+    "id": "scf_age",
+    "source": "SCF_codebook",
+    "claim": "The age recorded for a household is the age of its reference person.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 0.96,
+    "probabilities": {
+     "not_addressed": 0.01,
+     "contradicts": 0.02,
+     "supports": 0.97
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "scf_age_numeric",
+    "source": "SCF_codebook",
+    "claim": "AGE holds the age itself as a number; the survey's age classes are then cut from it at 35, 45, 55, 65 and 75.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 0.98,
+    "probabilities": {
+     "not_addressed": 0.0,
+     "supports": 0.99,
+     "contradicts": 0.01
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "control_scf_age_oldest",
+    "source": "SCF_codebook",
+    "claim": "The age recorded for a household is the age of its oldest member.",
+    "expect": "contradicts",
+    "verdict": "contradicts",
+    "confidence": 0.93,
+    "probabilities": {
+     "not_addressed": 0.05,
+     "contradicts": 0.95,
+     "supports": 0.0
+    },
+    "status": "pass",
+    "control": true
    },
    {
     "id": "z1_networth",
