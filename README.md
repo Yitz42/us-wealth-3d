@@ -10,9 +10,11 @@ Under the slicer, "Show" switches the flat chart between Wealth and three breakd
 Survey of Consumer Finances (1989–2022, every three years): Gender (couples, single women, single men),
 Race, Location of money (what assets are held in), Work sector (occupation or work status), and Age of the
 household head. With the Income measure selected, these rank households by income instead of net worth.
-"Age of household head" (under 40, 40–54, 55–69, 70 and over: the Fed DFA's groups) trims the 3-D chart,
-the slice and its table to the part of each 1% group held by that age group, 1989 onward, and limits the
-Show breakdowns to households of that age. Percentiles still rank all ages. Clicking a bar opens a panel for that year and
+"Age of household head" is a two-handle slider (any range of ages, 17–95, with buttons for the Fed DFA's
+groups: under 40, 40–54, 55–69, 70 and over). It trims the 3-D chart, the slice and its table to the part of
+each 1% group held by households whose head is in that age range, 1989 onward. The Show breakdowns follow the
+range when it starts and ends on the DFA groups' edges (40, 55, 70) and cover all ages otherwise. Percentiles
+still rank all ages. Clicking a bar opens a panel for that year and
 percentile, with options to average over neighbouring years and percentiles.
 
 ## Run
@@ -70,7 +72,7 @@ Responses are cached in `data/jev_cache.json`. The page shows the results in its
 - WID ranks **adults** aged 20+, with each couple's wealth split equally, not households. Its shares are applied to household totals, because it is the only 1-percentile source back to 1950. The Fed's household-based data puts the top 1% about 5 points lower.
 - 1950–1961 are WID estimates built from income-tax trends. 2023–2024 are WID preliminary estimates (nowcasts). 2025–2026 are extended here from Fed DFA group changes. 2026 is a partial year.
 - 2025 CPI-U averages 11 months, because BLS published no October 2025 CPI.
-- The age split comes from the SCF: each age group's share of every 1% group's net worth (or income),
+- The age split comes from the SCF: each single year of age's share of every 1% group's net worth (or income),
   interpolated between surveys, held at 2022 after that, and unavailable before 1989. It is applied to
   WID's adult-based bins, so an age group's total can differ from the Fed DFA's figure by a few points
   (see the Verification section). Bins where age groups' net worth has mixed signs are split by

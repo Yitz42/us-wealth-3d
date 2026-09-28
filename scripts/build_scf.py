@@ -14,13 +14,16 @@ any window of percentiles or years by adding sums before dividing:
   - households by age of the reference person (AGE), in the Fed DFA's four age groups,
   - dollars held in each kind of asset, debt, net worth and income.
 The same sums are also kept for each age group on its own (by_age), so the page can show any
-breakdown for one age group. Households are still ranked against all ages.
+breakdown for one age group, or several adjacent ones. Households are still ranked against all ages.
 
-age_trim holds, per survey and bin, the part of the bin that each age group accounts for: its
-share of the bin's net worth (wealth ranking) or income (income ranking). The page multiplies the
-3-D chart's values by it to show one age group. Where the age groups' sums have different signs
-(bins near zero), a share of the bin's total would fall outside 0..1, so those bins use the age
-group's share of the bin's households instead.
+age_cells holds, per survey and bin, every age present (whole years, 18-95) with its share of the
+bin's net worth (wealth ranking) or income (income ranking), in units of 1/100,000. Bins where some
+ages' sums have a different sign from the bin's total also carry each age's share of the bin's
+households, in the same units.
+The page's age slider adds these up over the chosen age range and multiplies the 3-D chart's values
+by the result (see age_part). In bins near zero, where some ages have positive net worth and others
+negative, the range's share of the total can fall outside 0..1; those bins use the range's share of
+the bin's households instead.
 SCF dollars are in the latest survey's dollars; only ratios within a bin are used.
 """
 import csv, json, pathlib
@@ -79,6 +82,7 @@ def build_survey(year, rank_by):
 
     bins = [blank() for _ in range(100)]
     by_age = {a: [blank() for _ in range(100)] for a, _ in AGES}
+    cells = [{} for _ in range(100)]  # per bin: age -> [households, net worth, income]
     cum = 0.0
     for nw, w, r in rows:
         mid = (cum + w / 2) / total_w  # rank by the middle of this row's weight
@@ -87,7 +91,11 @@ def build_survey(year, rank_by):
         a = age_group(r)
         add(bins[b_i], w, r, a)
         add(by_age[a][b_i], w, r, a)
-    return bins, by_age, total_w, len(rows)
+        c = cells[b_i].setdefault(int(r["AGE"]), [0.0, 0.0, 0.0])
+        c[0] += w
+        c[1] += w * float(r["NETWORTH"])
+        c[2] += w * float(r["INCOME"])
+    return bins, by_age, cells, total_w, len(rows)
 
 
 def add(b, w, r, a):
@@ -107,11 +115,17 @@ def add(b, w, r, a):
         b[key] += w * sum(float(r[c]) for c in cols)
 
 
-def trim_fraction(parts, total, weights, total_w):
-    """Each age group's part of one bin: its share of the bin's sum, or of its households when signs differ."""
-    if total and all(v == 0 or (v > 0) == (total > 0) for v in parts):
-        return [v / total for v in parts], False
-    return [v / total_w for v in weights], True
+SCALE = 100_000  # age_cells shares are stored as whole numbers of 1/100,000
+
+
+def age_part(cell, lo, hi):
+    """Part of one bin held by ages lo..hi, from its age_cells entry [ages, sum shares(, household shares)].
+    The page does the same (agePart in index.html); verify.py uses this function too."""
+    ages, f = cell[0], cell[1]
+    fr = sum(v for a, v in zip(ages, f) if lo <= a <= hi) / SCALE
+    if len(cell) == 2 or -1e-3 <= fr <= 1 + 1e-3:  # the range and the rest share the bin's sign (rounding aside)
+        return min(1.0, max(0.0, fr))
+    return sum(v for a, v in zip(ages, cell[2]) if lo <= a <= hi) / SCALE
 
 
 def main():
@@ -130,9 +144,8 @@ def main():
         # rankings[wealth|income]["by_age"][age][f][survey index][bin]: the same sums for one age group
         "rankings": {},
         "households": {},
-        # age_trim[wealth|income][age][survey index][bin]: fraction of the bin (see module docstring)
-        "age_trim": {},
-        "age_trim_fallback": {},
+        # age_cells[wealth|income][survey index][bin] = [ages, share of the bin's sum, share of its households]
+        "age_cells": {},
     }
     keys = ["n", "w", "networth", "income", "debt", "assets"] + [k for k, _ in GENDER + RACE + OCCUPATION + WORK + AGES] + [k for k, _, _ in HOLDINGS]
     assert len(keys) == len(set(keys)), "category keys must be unique across groups"
@@ -140,30 +153,32 @@ def main():
     for name, var in RANKINGS.items():
         fields = out["rankings"][name] = {k: [] for k in keys}
         age_fields = fields["by_age"] = {a: {k: [] for k in keys if k not in age_keys} for a in age_keys}
-        trim = out["age_trim"][name] = {a: [] for a in age_keys}
-        fallback = out["age_trim_fallback"][name] = []
+        age_cells = out["age_cells"][name] = []
         for year in SURVEYS:
-            bins, by_age, total_w, n_rows = build_survey(year, var)
+            bins, by_age, cells, total_w, n_rows = build_survey(year, var)
             out["households"][str(year)] = round(total_w)
             for k in keys:
                 fields[k].append([round(b[k]) if k != "n" else b[k] for b in bins])
             for a in age_keys:
                 for k in age_fields[a]:
                     age_fields[a][k].append([round(b[k]) if k != "n" else b[k] for b in by_age[a]])
-                trim[a].append([])
-            n_fb = 0
-            for i, b in enumerate(bins):
-                fr, fb = trim_fraction([by_age[a][i][RANKED_SUM[name]] for a in age_keys], b[RANKED_SUM[name]],
-                                       [b[a] for a in age_keys], b["w"])
-                n_fb += fb
-                for a, f in zip(age_keys, fr):
-                    trim[a][-1].append(round(f, 4))
-            fallback.append(n_fb)
+            col = 1 if name == "wealth" else 2
+            survey_cells = []
+            n_mixed = 0
+            for b, cell in zip(bins, cells):
+                ages = sorted(cell)
+                total = b[RANKED_SUM[name]]
+                entry = [ages, [round(cell[a][col] / total * SCALE) if total else 0 for a in ages]]
+                if not total or any(cell[a][col] and (cell[a][col] > 0) != (total > 0) for a in ages):
+                    entry.append([round(cell[a][0] / b["w"] * SCALE) for a in ages])
+                    n_mixed += 1
+                survey_cells.append(entry)
+            age_cells.append(survey_cells)
             top = bins[99]
             print(f"{name} {year}: {n_rows // 5:,} households surveyed, {total_w / 1e6:.1f}M weighted; "
                   f"top 1%: {top['white'] / top['w']:.0%} White, {top['couple'] / top['w']:.0%} couples, "
                   f"{top['occ_prof'] / top['w']:.0%} managers/professionals, {top['work_self'] / top['w']:.0%} self-employed, "
-                  f"{top['age_u40'] / top['w']:.0%} under 40; {n_fb} bins trimmed by household share")
+                  f"{top['age_u40'] / top['w']:.0%} under 40; {n_mixed} bins with mixed-sign ages")
     js = json.dumps(out, separators=(",", ":"))
     (ROOT / "data" / "scf.json").write_text(js)
     (ROOT / "data" / "scf.js").write_text("window.SCF = " + js + ";\n")

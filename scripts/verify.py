@@ -11,6 +11,8 @@ Jev calls need TYPESAFE_API_KEY; responses are cached in data/jev_cache.json.
 import csv, hashlib, json, os, pathlib, statistics, urllib.error, urllib.request
 from collections import defaultdict
 
+from build_scf import SCALE, age_part  # the age slider's rule, shared with the page's copy in index.html
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RAW = ROOT / "data" / "raw"
 TYPESAFE_URL = "https://api.typesafe.ai/v1/systemone"
@@ -296,6 +298,10 @@ def code_checks(w):
     return checks
 
 
+# The Fed DFA's age groups, as inclusive ranges of the household head's age (the SCF records 18-95).
+GROUP_AGES = {"age_u40": (0, 39), "age_40_54": (40, 54), "age_55_69": (55, 69), "age_70p": (70, 999)}
+
+
 def age_checks(w, scf):
     """The age selector: age groups re-derived from the raw SCF files, and the trim fractions the page applies."""
     checks = []
@@ -304,8 +310,8 @@ def age_checks(w, scf):
         checks.append({"check": name, "ok": bool(ok), "detail": detail, "info": info})
 
     ages = [a for a, _ in scf["categories"]["age"]]
-    bounds = {"age_u40": (0, 40), "age_40_54": (40, 55), "age_55_69": (55, 70), "age_70p": (70, 999)}
-    assert list(bounds) == ages, "age groups changed; update bounds"
+    assert list(GROUP_AGES) == ages, "age groups changed; update GROUP_AGES"
+    bounds = {a: (lo, hi + 1) for a, (lo, hi) in GROUP_AGES.items()}
 
     # 1. each age group's sums add up to the bin's; households by age add up to the bin's households
     worst = 0.0
@@ -339,22 +345,27 @@ def age_checks(w, scf):
            f"{len(scf['surveys'])} surveys, households and net worth for under 40, 40-54, 55-69 and 70+ recomputed from AGE; "
            f"largest relative gap {worst_rel:.1e}")
 
-    # 3. trim fractions: recomputed from the stored sums with the same rule, each bin's add up to 1
-    worst_frac, worst_sum, n_fb = 0.0, 0.0, 0
+    # 3. per-age shares (age_cells, used by the page's age slider) add up to each bin, and to each age group's sums
+    worst_sum, worst_grp, n_mixed, seen = 0.0, 0.0, 0, set()
     for name, key in (("wealth", "networth"), ("income", "income")):
-        F, T = scf["rankings"][name], scf["age_trim"][name]
-        for si in range(len(scf["surveys"])):
-            for b in range(100):
-                parts, total = [F["by_age"][a][key][si][b] for a in ages], F[key][si][b]
-                same_sign = total and all(v == 0 or (v > 0) == (total > 0) for v in parts)
-                expect = [v / total for v in parts] if same_sign else [F[a][si][b] / F["w"][si][b] for a in ages]
-                n_fb += not same_sign
-                worst_frac = max(worst_frac, *(abs(T[a][si][b] - e) for a, e in zip(ages, expect)))
-                worst_sum = max(worst_sum, abs(sum(T[a][si][b] for a in ages) - 1))
-    stored_fb = sum(sum(v) for v in scf["age_trim_fallback"].values())
-    record("SCF: age trim fractions follow from the survey sums", worst_frac < 1e-3 and worst_sum < 1e-3 and n_fb == stored_fb,
-           f"2 rankings x {len(scf['surveys'])} surveys x 100 bins; largest difference {worst_frac:.1e}, "
-           f"each bin's four fractions add to 1 within {worst_sum:.1e}; {n_fb} bins split by household share (near-zero, mixed-sign sums)")
+        F = scf["rankings"][name]
+        for si, bins in enumerate(scf["age_cells"][name]):
+            for b, cell in enumerate(bins):
+                n_mixed += len(cell) == 3
+                seen.update(cell[0])
+                total = F[key][si][b]
+                # net worth / income shares (all 0 in a bin that sums to exactly 0), then household shares if stored
+                for shares in cell[1:] if total else cell[2:]:
+                    worst_sum = max(worst_sum, abs(sum(shares) / SCALE - 1))
+                for a in ages:
+                    lo, hi = GROUP_AGES[a]
+                    got = sum(v for x, v in zip(cell[0], cell[1]) if lo <= x <= hi) / SCALE
+                    expect = F["by_age"][a][key][si][b] / total if total else 0
+                    worst_grp = max(worst_grp, abs(got - expect) / max(1, abs(expect)))
+    record("SCF: per-age shares add up to each bin and each age group", worst_sum < 1e-3 and worst_grp < 1e-3,
+           f"2 rankings x {len(scf['surveys'])} surveys x 100 bins, ages {min(seen)}-{max(seen)}; "
+           f"each bin's ages add to 100% within {worst_sum:.1e}, and to each age group's sums within {worst_grp:.1e}; "
+           f"{n_mixed} bins where ages differ in sign also carry household shares")
 
     # informational: the page's age-group share of all wealth vs the Fed DFA's (both from the SCF, different ranking and totals)
     dfa = defaultdict(lambda: defaultdict(list))
@@ -367,7 +378,7 @@ def age_checks(w, scf):
     for si, year in enumerate(scf["surveys"]):
         j = years.index(year)
         for a in ages:
-            page = sum(share[b][j] * scf["age_trim"]["wealth"][a][si][b] for b in range(100))
+            page = sum(share[b][j] * age_part(scf["age_cells"]["wealth"][si][b], *GROUP_AGES[a]) for b in range(100))
             gaps[a].append(page - statistics.mean(dfa[year][dfa_key[a]]))
     labels = dict(scf["categories"]["age"])
     record("Cross-source: age groups' share of wealth vs Fed DFA", True,

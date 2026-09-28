@@ -79,15 +79,15 @@
    "info": false
   },
   {
-   "check": "SCF: age trim fractions follow from the survey sums",
+   "check": "SCF: per-age shares add up to each bin and each age group",
    "ok": true,
-   "detail": "2 rankings x 12 surveys x 100 bins; largest difference 5.0e-05, each bin's four fractions add to 1 within 1.0e-04; 13 bins split by household share (near-zero, mixed-sign sums)",
+   "detail": "2 rankings x 12 surveys x 100 bins, ages 17-95; each bin's ages add to 100% within 7.0e-05, and to each age group's sums within 3.8e-05; 15 bins where ages differ in sign also carry household shares",
    "info": false
   },
   {
    "check": "Cross-source: age groups' share of wealth vs Fed DFA",
    "ok": true,
-   "detail": "page minus DFA, average over the 12 survey years: Under 40 +0.6 pp (range -0.0 to +2.1), 40\u201354 +1.0 pp (range -0.4 to +2.3), 55\u201369 -2.2 pp (range -3.5 to -0.7), 70 and over +0.6 pp (range -0.4 to +1.2). The page splits WID's adult-based bins by the survey's age mix; DFA uses household totals",
+   "detail": "page minus DFA, average over the 12 survey years: Under 40 +0.6 pp (range +0.0 to +2.2), 40\u201354 +1.0 pp (range -0.4 to +2.3), 55\u201369 -2.2 pp (range -3.5 to -0.7), 70 and over +0.6 pp (range -0.4 to +1.2). The page splits WID's adult-based bins by the survey's age mix; DFA uses household totals",
    "info": true
   },
   {
