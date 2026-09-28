@@ -4,7 +4,7 @@ import csv, html, io, json, pathlib, re, subprocess, sys, zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RAW = ROOT / "data" / "raw"
-FRED_SERIES = ["CPIAUCNS", "DPCERG3A086NBEA", "PCEPI", "PCECA", "PCE", "TTLHH", "TNWBSHNO", "A032RC1A027NBEA"]
+FRED_SERIES = ["CPIAUCNS", "DPCERG3A086NBEA", "PCEPI", "PCECA", "PCE", "TTLHH", "TNWBSHNO", "BOGZ1FL192090005Q", "A032RC1A027NBEA"]
 DFA_ZIP = "https://www.federalreserve.gov/releases/z1/dataviz/download/zips/dfa.zip"
 SCF_SURVEYS = [1989, 1992, 1995, 1998, 2001, 2004, 2007, 2010, 2013, 2016, 2019, 2022]
 SCF_FILES = "https://www.federalreserve.gov/econres/files"
@@ -76,6 +76,52 @@ def scf_doc():
     }
 
 
+# Research that disputes the page's main sources. The page summarizes each in its "Where sources
+# disagree" section; verify.py has Jev check those summaries against these passages, copied from
+# the papers (the PDFs aren't machine-readable here, so the passages are kept in the code).
+LITERATURE = {
+    "SmithZidarZwick_2023": {
+        "url": "https://academic.oup.com/qje/article/138/1/515/6678447",
+        "title": "Smith, Zidar and Zwick (2023), Top Wealth in America: New Estimates under Heterogeneous Returns, Quarterly Journal of Economics 138(1)",
+        "definitions": "PSZ refers to Piketty, Saez, and Zucman (2018), the series behind WID.world's US wealth shares.",
+        "passage": "From 1989 to 2016, the top 1%, 0.1%, 0.01%, and 0.001% wealth shares in our baseline series increased by "
+                   "6.6, 4.6, 2.9, and 1.7 percentage points, respectively, to 33.7%, 15.7%, 7.1%, and 3.2%. In the PSZ "
+                   "series, wealth shares increased by 10.0, 7.9, 5.4, and 3.1 percentage points to 36.6%, 18.6%, 9.5%, and 4.6%. "
+                   "Across all approaches, top wealth shares have steadily risen since the 1980s.",
+    },
+    "AutenSplinter_2024": {
+        "url": "https://www.journals.uchicago.edu/doi/10.1086/728741",
+        "title": "Auten and Splinter (2024), Income Inequality in the United States: Using Tax Data to Measure Long-Term Trends, Journal of Political Economy 132(7)",
+        "abstract": "Concerns about income inequality emphasize the importance of accurate income measures. Estimates of top "
+                    "income shares based only on individual tax returns are biased by tax-base changes, social changes, and "
+                    "missing income sources. This paper addresses these shortcomings and presents new estimates of the "
+                    "distribution of national income since 1960. The analysis of pretax income shows that top income shares "
+                    "are lower and have increased less since 1980 than other studies using tax data. In addition, increasing "
+                    "government transfers and tax progressivity have resulted in rising real incomes for all income groups "
+                    "and little change in aftertax top income shares.",
+    },
+    "PikettySaezZucman_2024_comment": {
+        "url": "https://eml.berkeley.edu/~saez/PSZ2024.pdf",
+        "title": "Piketty, Saez and Zucman (2024), Income Inequality in the United States: A Comment",
+        "abstract_excerpt": "Auten and Splinter (2024) provide estimates of income inequality in the United States, starting with "
+                            "income observed in tax returns and making adjustments to account for untaxed income. We uncover an "
+                            "empirical issue in the allocation of untaxed income. [...] This creates a bias in the level and rise "
+                            "of the top 1% income share. [...] After clarifying these assumptions and confronting them to existing "
+                            "evidence, the Auten and Splinter (2024) estimates become similar in level and trend to those of "
+                            "Piketty, Saez and Zucman (2018).",
+    },
+    "IselinReck_2024_comment": {
+        "url": "https://www.danreck.com/s/CommentAutenSplinter-h75z.pdf",
+        "title": "Iselin and Reck (2024), Comment on Auten and Splinter",
+        "abstract_excerpt": "We assess Auten and Splinter's estimates of the top 1% share of income, focusing on tax non-compliance. "
+                            "They assume the concentration of misreporting follows the 1/3 of total misreporting detected in "
+                            "random audits. [...] Empirical data threaten this assumption. Most importantly, pass-through business "
+                            "income is unexamined in random audits and grew dramatically after 1986. [...] Conceptual "
+                            "disagreements explain 60% of the divergence between studies; a re-ranking issue explains the rest.",
+    },
+}
+
+
 def main():
     RAW.mkdir(parents=True, exist_ok=True)
     for sid in FRED_SERIES:
@@ -103,6 +149,7 @@ def main():
         "title": "Distributional Financial Accounts: net worth shares by wealth percentile group",
         "definitions": (RAW / "dfa" / "dfa-data-definitions.txt").read_text(errors="replace")[:2500],
     }
+    docs.update(LITERATURE)
     (RAW / "source_docs.json").write_text(json.dumps(docs, indent=2))
     print("source_docs.json")
 

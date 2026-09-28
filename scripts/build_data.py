@@ -5,9 +5,11 @@ Years after WID's last year are extended with the Fed's Distributional
 Financial Accounts (DFA): each WID bin is scaled by how much its DFA group's
 share changed since WID's last year, then shares are renormalized to 100%.
 
-Dollar views convert shares with Fed Z.1 household net worth (FRED TNWBSHNO)
-and Census household counts (FRED TTLHH), then deflate with CPI-U or the PCE
-price index, or divide by consumer spending per household (PCE).
+Dollar views convert shares with Fed Z.1 net worth of households alone (FRED
+BOGZ1FL192090005Q, table B.101.h, from 1987:Q4). Before that the Fed publishes only
+households and nonprofits together (TNWBSHNO), so earlier years scale that total by the
+households' share of it in 1987:Q4. Household counts are Census (FRED TTLHH); dollars are
+deflated with CPI-U or the PCE price index, or divided by consumer spending per household (PCE).
 """
 import calendar, csv, json, pathlib, statistics
 from collections import defaultdict
@@ -209,7 +211,11 @@ def main():
     years = sorted(y for y in wid if y >= START_YEAR)
 
     # --- Macro series ---------------------------------------------------------------
-    z1 = {(int(d[:4]), (int(d[5:7]) - 1) // 3 + 1): v for d, v in fred("TNWBSHNO").items()}  # $ millions
+    quarterly = lambda sid: {(int(d[:4]), (int(d[5:7]) - 1) // 3 + 1): v for d, v in fred(sid).items()}  # $ millions
+    z1 = quarterly("TNWBSHNO")  # households and nonprofits, 1945-
+    z1_hh = quarterly("BOGZ1FL192090005Q")  # households only, 1987:Q4-
+    hh_first = min(z1_hh)
+    hh_part = z1_hh[hh_first] / z1[hh_first]  # households' part of the combined total when both first exist
     households = annual(fred("TTLHH"))  # thousands
     cpi_monthly = fred("CPIAUCNS")
     cpi = annual_mean(cpi_monthly)
@@ -222,7 +228,12 @@ def main():
     macro = {}
     for y in years:
         zq = year_end(z1, y)
-        nw = z1[zq] * 1e6
+        if zq in z1_hh:
+            nw = z1_hh[zq] * 1e6
+        else:
+            nw = z1[zq] * hh_part * 1e6
+            notes[y].append(f"Household net worth estimated: the Fed's households-and-nonprofits total x {hh_part:.1%}, "
+                            f"the households' part in {hh_first[0]}:Q{hh_first[1]}, the first quarter the Fed separates them.")
         if zq[1] != 4:
             notes[y].append(f"Household net worth is the {zq[0]}:Q{zq[1]} level (latest available).")
 
@@ -358,6 +369,12 @@ def main():
             "spend_years": spend_years,
         },
         "income": income,
+        # Earlier years' household net worth = households-and-nonprofits total x this part (see module docstring).
+        "households_only_net_worth": {"from": f"{hh_first[0]}:Q{hh_first[1]}", "households_part": round(hh_part, 4)},
+        # The Fed DFA's own shares for the same four groups (households, year-end quarter), 1989 on,
+        # shown beside WID's so the page can mark where the two disagree.
+        "dfa_groups": {str(y): {"quarter": f"{q[0]}:Q{q[1]}", **{g: round(dfa[q][g], 2) for g in DFA_GROUPS}}
+                       for y in range(min(k[0] for k in dfa), dfa_last_year + 1) if (q := year_end(dfa, y))},
     }
     # WID's women/men series are kept for reference but not shown on the page.
     (ROOT / "data" / "gender_wid.json").write_text(json.dumps(gender, separators=(",", ":")))

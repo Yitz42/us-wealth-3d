@@ -33,7 +33,7 @@
   {
    "check": "Macro inputs match FRED files",
    "ok": true,
-   "detail": "77 years x 3 series",
+   "detail": "77 years x 3 series; household net worth is households only (BOGZ1FL192090005Q) from 1987, and for the 37 earlier years the households-and-nonprofits total (TNWBSHNO) x 94.6%",
    "info": false
   },
   {
@@ -63,7 +63,7 @@
   {
    "check": "SCF households vs Census count",
    "ok": true,
-   "detail": "SCF weighted households vs FRED TTLHH: 1989 +13095801%, 1992 +11684702%, 1995 +14369340%, 1998 +17519075%, 2001 +21109547%, 2004 +23487208%, 2007 +26792331%, 2010 +23036412%, 2013 +23882969%, 2016 +32837413%, 2019 +32224828%, 2022 +37230508%",
+   "detail": "SCF weighted households vs FRED TTLHH: 1989 +0%, 1992 +0%, 1995 +0%, 1998 +0%, 2001 -2%, 2004 +0%, 2007 +0%, 2010 +0%, 2013 +0%, 2016 +0%, 2019 +0%, 2022 +0%",
    "info": true
   },
   {
@@ -513,6 +513,126 @@
     },
     "status": "pass",
     "control": true
+   },
+   {
+    "id": "z1_households_only",
+    "source": "BOGZ1FL192090005Q",
+    "claim": "Net worth of US households alone (the household sector, not combined with nonprofits), measured in millions of US dollars.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 0.89,
+    "probabilities": {
+     "contradicts": 0.04,
+     "supports": 0.92,
+     "not_addressed": 0.04
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "szz_top1_lower",
+    "source": "SmithZidarZwick_2023",
+    "claim": "Smith, Zidar and Zwick estimate the top 1% share of US wealth in 2016 at 33.7%, lower than the 36.6% in the series of Piketty, Saez and Zucman.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 1.0,
+    "probabilities": {
+     "contradicts": 0.0,
+     "supports": 1.0,
+     "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "szz_top1_rising",
+    "source": "SmithZidarZwick_2023",
+    "claim": "Smith, Zidar and Zwick also find that the top 1% share of wealth rose between 1989 and 2016.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 1.0,
+    "probabilities": {
+     "contradicts": 0.0,
+     "supports": 1.0,
+     "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "control_szz_top1_fell",
+    "source": "SmithZidarZwick_2023",
+    "claim": "Smith, Zidar and Zwick find that the top 1% share of wealth fell between 1989 and 2016.",
+    "expect": "contradicts",
+    "verdict": "contradicts",
+    "confidence": 1.0,
+    "probabilities": {
+     "contradicts": 1.0,
+     "supports": 0.0,
+     "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": true
+   },
+   {
+    "id": "as_lower",
+    "source": "AutenSplinter_2024",
+    "claim": "Auten and Splinter estimate top pre-tax income shares that are lower, and have risen less since 1980, than other studies using tax data.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 1.0,
+    "probabilities": {
+     "contradicts": 0.0,
+     "supports": 1.0,
+     "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "control_as_aftertax_rise",
+    "source": "AutenSplinter_2024",
+    "claim": "Auten and Splinter find that top after-tax income shares have risen sharply.",
+    "expect": "contradicts",
+    "verdict": "contradicts",
+    "confidence": 1.0,
+    "probabilities": {
+     "contradicts": 1.0,
+     "supports": 0.0,
+     "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": true
+   },
+   {
+    "id": "psz_reply",
+    "source": "PikettySaezZucman_2024_comment",
+    "claim": "Piketty, Saez and Zucman argue that, once some of Auten and Splinter's assumptions are corrected, their estimates become similar in level and trend to Piketty, Saez and Zucman's own.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 0.99,
+    "probabilities": {
+     "supports": 1.0,
+     "contradicts": 0.0,
+     "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "ir_reply",
+    "source": "IselinReck_2024_comment",
+    "claim": "Iselin and Reck argue that the evidence threatens Auten and Splinter's assumption about who holds unreported income, especially pass-through business income.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 1.0,
+    "probabilities": {
+     "contradicts": 0.0,
+     "supports": 1.0,
+     "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": false
    },
    {
     "id": "households",

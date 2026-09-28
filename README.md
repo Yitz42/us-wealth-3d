@@ -44,7 +44,7 @@ Python 3.9+ standard library only. `fetch_data.py` pulls just the US files out o
 |---|---|---|
 | Wealth share per 1% bin | WID.world `shwealj992` (Saez–Zucman DINA) | 1950–2024 |
 | Group shares used to extend and cross-check | Fed Distributional Financial Accounts | 1989–2026 Q2 |
-| Total household net worth | Fed Z.1 via FRED `TNWBSHNO` | 1945– |
+| Total household net worth | Fed Z.1 via FRED `BOGZ1FL192090005Q` (households only); before 1987, `TNWBSHNO` (households and nonprofits) scaled to households | 1987– / 1945– |
 | Income share per 1% bin | WID.world `sptincj992` (pre-tax national income) | 1950–2024 |
 | National income | BEA via FRED `A032RC1A027NBEA` | 1929– |
 | Households | Census via FRED `TTLHH` | 1940– |
@@ -68,6 +68,16 @@ python3 scripts/verify.py
 ```
 
 Responses are cached in `data/jev_cache.json`. The page shows the results in its Verification section.
+
+## Where sources disagree
+
+The page has a section comparing WID's shares with the Fed's Distributional Financial Accounts, the
+Survey of Consumer Finances and published research: WID's top 1% wealth share is about 5 points above
+the Fed's, WID puts the bottom half's wealth below zero in 2007–2017 while the Fed and the survey don't,
+and the top 1% income share is disputed (Auten and Splinter 2024; replies by Piketty, Saez and Zucman
+and by Iselin and Reck). The year table flags groups 2 or more points from the Fed's or the survey's
+figures. `verify.py` has Jev check each summary of a paper against a passage from the paper, kept in
+`scripts/fetch_data.py`.
 
 ## Caveats
 

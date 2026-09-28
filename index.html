@@ -131,6 +131,13 @@
   th { font-size: 12px; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
   td.num, th.num { text-align: right; }
 
+  .flag { color: var(--critical); font-weight: 600; white-space: nowrap; }
+  .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; border: 1px solid currentColor; }
+  .badge.disputed { color: var(--critical); } .badge.method { color: var(--warning); } .badge.fixed { color: var(--good); } .badge.gap { color: var(--text-muted); }
+  .disputes td { vertical-align: top; } .disputes td:first-child { width: 24%; min-width: 110px; }
+  .disputes .badge { margin-top: 6px; white-space: normal; }
+  .disputes p { margin: 0 0 4px; } .disputes .muted { margin: 4px 0 0; }
+  .no-other th:nth-child(4), .no-other td:nth-child(4) { display: none; }
   section { margin-top: 40px; }
   section h2 { font-size: 20px; margin: 0 0 12px; }
   .sources { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
@@ -277,7 +284,7 @@
         <p class="muted" id="cell-note" style="margin:0"></p>
       </div>
       <table id="slice-table">
-        <thead><tr><th id="col-a">Group</th><th class="num" id="col-value">Value</th><th class="num" id="col-c">Share of all wealth</th></tr></thead>
+        <thead><tr><th id="col-a">Group</th><th class="num" id="col-value">Value</th><th class="num" id="col-c">Share of all wealth</th><th class="num" id="col-d" title="The same group's share in the Fed's Distributional Financial Accounts (households, year-end) and the Survey of Consumer Finances (survey years)">Other sources</th></tr></thead>
         <tbody id="slice-body"></tbody>
       </table>
       <p class="muted" id="slice-note"></p>
@@ -319,7 +326,7 @@
         <p>Turns percentage shares into dollars per household.</p>
         <ul>
           <li><a href="https://fred.stlouisfed.org/series/A032RC1A027NBEA" target="_blank" rel="noopener">National income (BEA, A032RC1A027NBEA)</a>, for the Income measure</li>
-          <li><a href="https://fred.stlouisfed.org/series/TNWBSHNO" target="_blank" rel="noopener">Household &amp; nonprofit net worth (Fed Z.1, TNWBSHNO)</a></li>
+          <li><a href="https://fred.stlouisfed.org/series/BOGZ1FL192090005Q" target="_blank" rel="noopener">Household net worth (Fed Z.1 table B.101.h, BOGZ1FL192090005Q)</a>, 1987 on · before 1987: <a href="https://fred.stlouisfed.org/series/TNWBSHNO" target="_blank" rel="noopener">households &amp; nonprofits (TNWBSHNO)</a>, scaled to households</li>
           <li><a href="https://fred.stlouisfed.org/series/TTLHH" target="_blank" rel="noopener">Total households (Census, TTLHH)</a></li>
         </ul>
       </div>
@@ -362,6 +369,17 @@
         <dt>Filling gaps</dt>
         <dd id="m-gaps"></dd>
       </dl>
+    </div>
+  </section>
+
+  <section>
+    <h2>Where sources disagree</h2>
+    <p class="muted" id="disputes-intro"></p>
+    <div class="card verify">
+      <table class="disputes">
+        <thead><tr><th>Topic</th><th>What the sources say</th></tr></thead>
+        <tbody id="disputes"></tbody>
+      </table>
     </div>
   </section>
 
@@ -411,6 +429,18 @@
     none: { label: "No 1% income data yet", color: "--grid" },
   };
   const GROUPS = [["Bottom 50%", 0, 50], ["50th–90th", 50, 90], ["90th–99th", 90, 99], ["Top 1%", 99, 100]];
+  // ---------- other sources for the same groups: the Fed DFA (households, year-end, 1989 on) and the SCF (survey years)
+  const DFA = W.dfa_groups || {}, DFA_KEYS = ["Bottom50", "Next40", "Next9", "RemainingTop1"];  // GROUPS order
+  const DISPUTE_PP = 2;  // gaps from WID this large (or a different sign) are flagged
+  const dfaShares = y => DFA[y] ? DFA_KEYS.map(k => DFA[y][k]) : null;
+  function scfShares(y) {
+    const si = window.SCF.surveys.indexOf(y);
+    if (si < 0) return null;
+    const nw = window.SCF.rankings.wealth.networth[si], tot = nw.reduce((a, b) => a + b, 0);
+    return GROUPS.map(([, lo, hi]) => nw.slice(lo, hi).reduce((a, b) => a + b, 0) / tot * 100);
+  }
+  const wealthGroupShare = (y, lo, hi) => { const j = years.indexOf(y); let t = 0; for (let i = lo; i < hi; i++) t += W.measures.share[i][j]; return t; };
+  const disputed = (a, b) => Math.abs(a - b) >= DISPUTE_PP || (a < 0) !== (b < 0);
 
   const state = { shape: "pillars", view: "share", scale: "linear", lo: 1, hi: 100,
                   y0: years[0], y1: years[years.length - 1],
@@ -688,6 +718,7 @@
     `<b>${years[j]}</b> · ${ordinal(p - 1)}–${ordinal(p)} percentile<br>${view.fmt(v)}` +
     (ageOn() ? `<br>Head ${ageLabel()}: ${(ageFracs()[p - 1][j] * 100).toFixed(0)}% of this group's ${isInc() ? "income" : "wealth"} (all ages: ${view.fmt(baseM()[state.view][p - 1][j])})` : "") +
     (isGrey(p, j) ? "<br><span style='font-size:11px'>Estimated: WID shows exactly 0.00%</span>" : "") +
+    (p === 100 && !isInc() && !ageOn() && DFA[years[j]] && disputed(W.measures.share[99][j], DFA[years[j]].RemainingTop1) ? `<br><span style='font-size:11px'>⚑ Disputed: the Fed DFA puts the top 1% at ${DFA[years[j]].RemainingTop1.toFixed(1)}% of wealth (WID ${W.measures.share[99][j].toFixed(1)}%)</span>` : "") +
     `<br><span style='font-size:11px'>${TIERS[tierOf(years[j])].label}</span>`;
 
   function buildTraces() {
@@ -1045,6 +1076,7 @@
         ? `${BD[group()].title}${bdWho()}: the ${pctName(p)} ${isInc() ? "income" : "wealth"} percentile, ${Math.max(state.y0, SV[0])}–${Math.min(state.y1, SV[SV.length - 1])} (surveys every 3 years)`
         : `The ${pctName(p)} percentile, ${effRange().join("–")}` + (ageOn() ? `: the part ${isInc() ? "received" : "held"} by households headed by someone ${ageLabel()}` : "");
       document.getElementById("col-a").textContent = "Year";
+      document.getElementById("slice-table").classList.add("no-other");
       const js = yearIdx(), pick = cmp => js.reduce((best, jj) => cmp(vals[jj], vals[best]) ? jj : best, js[0]);
       const lowJ = pick((a, b) => a < b), peakJ = pick((a, b) => a > b);
       for (const [label, jj] of [["First", js[0]], ["Lowest", lowJ], ["Highest", peakJ], ["Last", js[js.length - 1]]]) {
@@ -1064,15 +1096,24 @@
       ? `${BD[group()].title}${bdWho()}, by ${isInc() ? "income" : "wealth"} percentile, ${state.year}` + (near ? ` (no survey that year; showing ${near})` : "")
       : `All percentiles in ${state.year}` + (ageOn() ? `: the part ${isInc() ? "received" : "held"} by households headed by someone ${ageLabel()}` : "");
     document.getElementById("col-a").textContent = "Group";
-    for (const [name, lo, hi] of ageOn() ? [...GROUPS, [`All percentiles (head ${ageLabel()})`, 0, 100]] : GROUPS) {
+    // Other sources only for wealth across all ages: the DFA and SCF don't split by this page's age ranges or WID's income concept.
+    const dfaY = dfaShares(state.year), scfY = scfShares(state.year), showOther = !isInc() && !ageOn() && (dfaY || scfY);
+    document.getElementById("slice-table").classList.toggle("no-other", !showOther);
+    let nFlags = 0;
+    (ageOn() ? [...GROUPS, [`All percentiles (head ${ageLabel()})`, 0, 100]] : GROUPS).forEach(([name, lo, hi], gi) => {
       let share = 0, val = 0;
       for (let i = lo; i < hi; i++) { share += M().share[i][j]; val += M()[state.view][i][j]; }
       const avg = isShare ? share : val / (hi - lo);
+      const others = [dfaY && ["Fed DFA", dfaY[gi]], scfY && ["SCF", scfY[gi]]].filter(Boolean);
+      const flag = showOther && others.some(([, v]) => disputed(share, v));
+      nFlags += flag;
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${name}</td><td class="num">${view.fmt(avg)}</td><td class="num">${share.toFixed(1)}%</td>`;
+      tr.innerHTML = `<td>${name}</td><td class="num">${view.fmt(avg)}</td><td class="num">${share.toFixed(1)}%</td>` +
+        `<td class="num">${showOther ? others.map(([k, v]) => `${k} ${v.toFixed(1)}%`).join(" · ") + (flag ? ' <span class="flag" title="Differs from WID by 2 points or more, or has the opposite sign">⚑ disputed</span>' : "") : ""}</td>`;
       body.appendChild(tr);
-    }
-    const notes = [TIERS[tierOf(state.year)].label + "."].concat(W.year_notes[state.year] || []).concat(ageOn() ? [ageYearNote(state.year)] : []);
+    });
+    const notes = [TIERS[tierOf(state.year)].label + "."].concat(W.year_notes[state.year] || []).concat(ageOn() ? [ageYearNote(state.year)] : [])
+      .concat(showOther && nFlags ? [`⚑ ${nFlags} group${nFlags > 1 ? "s" : ""} differ${nFlags > 1 ? "" : "s"} from the Fed DFA or the survey by ${DISPUTE_PP} points or more; see “Where sources disagree” below.`] : []);
     document.getElementById("slice-note").textContent = bd ? "" : notes.join(" ");
     updateCell();
   }
@@ -1101,9 +1142,71 @@
   const ext = Object.entries(W.dfa_quarter_used).map(([y, q]) => `${y} (Fed data through ${q})`).join(", ");
   document.getElementById("m-gaps").textContent =
     `WID publishes every 1% bin through ${years.find(y => W.tier[y] === "extended_dfa") - 1}. For ${ext}, each bin is scaled by how much its Fed DFA group (bottom 50%, 50–90, 90–99, top 1%) changed since then, and the 100 bins are rescaled to add up to 100%. ` +
-    Object.entries(W.year_notes).map(([y, ns]) => `${y}: ${ns.join(" ")}`).join(" ");
-  const gapCheck = V && V.code_checks.find(c => c.check.startsWith("Cross-source"));
+    // The same note on consecutive years reads once, with the year range.
+    (() => {
+      const runs = [];
+      for (const [y, ns] of Object.entries(W.year_notes)) for (const n of ns) {
+        const r = runs.find(r => r.n === n && r.to === +y - 1);
+        if (r) r.to = +y; else runs.push({ n, from: +y, to: +y });
+      }
+      return runs.map(r => `${r.from === r.to ? r.from : `${r.from}–${r.to}`}: ${r.n}`).join(" ");
+    })();
+  const gapCheck = V && V.code_checks.find(c => c.check.startsWith("Cross-source: WID vs Fed top-1%"));
   if (gapCheck) { const m = gapCheck.detail.match(/([+-][\d.]+) pp/); if (m) document.getElementById("m-gap").textContent = Math.abs(+m[1]).toFixed(0); }
+
+  // ---------- where sources disagree: figures computed from the data; claims about papers checked by Jev (verify.py)
+  function renderDisputes() {
+    const one = v => v.toFixed(1), signed = v => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(1);
+    const span = ys => { const out = []; for (const y of ys) { const r = out.at(-1); if (r && r[1] === y - 1) r[1] = y; else out.push([y, y]); }
+                         return out.map(([a, b]) => a === b ? `${a}` : `${a}–${b}`).join(", "); };
+    const wid = years.filter(y => W.tier[y] !== "extended_dfa"), lastWid = wid.at(-1);
+    const jevTag = ids => {
+      const rs = V && V.jev ? ids.map(id => V.jev.results.find(r => r.id === id)).filter(Boolean) : [];
+      if (!rs.length) return "";
+      const ok = rs.every(r => r.status === "pass");
+      return `<p class="muted">${ok ? "✓" : "△"} Jev checked ${rs.length === 1 ? "this summary" : `these ${rs.length} statements`} against the paper's own text${ok ? "" : " (not all passed; see Verification)"}.</p>`;
+    };
+    // Top 1% of wealth: WID vs the Fed DFA and the SCF.
+    const dfaYears = wid.filter(y => DFA[y]);
+    const top1Gap = dfaYears.map(y => wealthGroupShare(y, 99, 100) - DFA[y].RemainingTop1);
+    const scfGap = SV.map(y => wealthGroupShare(y, 99, 100) - scfShares(y)[3]);
+    // Bottom 50%: years WID puts below zero.
+    const negYears = wid.filter(y => wealthGroupShare(y, 0, 50) < 0);
+    const negDfa = negYears.filter(y => DFA[y]).map(y => DFA[y].Bottom50), negScf = negYears.filter(y => SV.includes(y)).map(y => scfShares(y)[0]);
+    // Income top 1%, and the 1987-88 and 1962 jumps.
+    const incShare = (y, lo, hi) => { const j = years.indexOf(y); let t = 0; for (let i = lo; i < hi; i++) t += INC.measures.share[i][j]; return t; };
+    const incLast = INC.years.at(-1), nw = W.households_only_net_worth;
+    const rows = [
+      ["Top 1% share of wealth", "disputed", "Disputed",
+       `<p>WID (this chart) is ${one(top1Gap.reduce((a, b) => a + b, 0) / top1Gap.length)} points above the Fed's Distributional Financial Accounts on average over ${dfaYears[0]}–${dfaYears.at(-1)} (range ${signed(Math.min(...top1Gap))} to ${signed(Math.max(...top1Gap))}), and ${(() => { const m = scfGap.reduce((a, b) => a + b, 0) / scfGap.length; return `${one(Math.abs(m))} points ${m >= 0 ? "above" : "below"}`; })()} the Survey of Consumer Finances on average in its ${SV.length} survey years (range ${signed(Math.min(...scfGap))} to ${signed(Math.max(...scfGap))}).</p>` +
+       `<p>Smith, Zidar and Zwick (2023) re-estimate top wealth from the same tax data with different assumptions about investment returns: the top 1% held 33.7% in 2016, against 36.6% in the Piketty, Saez and Zucman series that WID's figures come from (this chart, from WID's current revision: ${one(wealthGroupShare(2016, 99, 100))}%). They agree the top share has risen since the 1980s.</p>` +
+       `<p class="muted">Part of the gap is what is ranked: WID ranks adults, with a couple's wealth split equally; the Fed and the survey rank households. ⚑ marks it in the year table and on the top 1% pillar.</p>` +
+       jevTag(["szz_top1_lower", "szz_top1_rising", "control_szz_top1_fell"])],
+      ["Bottom 50% share of wealth", "disputed", "Disputed",
+       negYears.length
+         ? `<p>WID puts the bottom half below zero (owing more than it owns) in ${span(negYears)}. In those years the Fed DFA has the bottom half of households at ${one(Math.min(...negDfa))}% to ${one(Math.max(...negDfa))}% of wealth, and the survey at ${one(Math.min(...negScf))}% to ${one(Math.max(...negScf))}%.</p><p class="muted">The sources rank different units (adults vs households) and are built by different methods, so even the sign is in dispute.</p>`
+         : `<p>WID, the Fed DFA and the survey all put the bottom half above zero.</p>`],
+      ["Top 1% share of pre-tax income", "disputed", "Disputed (ongoing)",
+       `<p>This chart uses WID's pre-tax national income (Piketty, Saez and Zucman): the top 1% received ${one(incShare(1960, 99, 100))}% in 1960 and ${one(incShare(incLast, 99, 100))}% in ${incLast}.</p>` +
+       `<p>Auten and Splinter (2024) find top pre-tax income shares that are lower and have risen less since 1980, and little change in after-tax top shares. Piketty, Saez and Zucman (2024) reply that, once some of Auten and Splinter's assumptions about untaxed income are corrected, the two series become similar in level and trend. Iselin and Reck (2024) argue the evidence threatens Auten and Splinter's assumption about who holds unreported income, especially pass-through business income.</p>` +
+       jevTag(["as_lower", "control_as_aftertax_rise", "psz_reply", "ir_reply"])],
+      ["Jumps in 1987–1988", "method", "Possible tax-reporting effect",
+       `<p>The top 1% share rises ${signed(wealthGroupShare(1988, 99, 100) - wealthGroupShare(1986, 99, 100))} points of wealth and ${signed(incShare(1988, 99, 100) - incShare(1986, 99, 100))} points of income from 1986 to 1988, the largest two-year rise in either series. These years follow the Tax Reform Act of 1986, which changed how much business income appears on individual tax returns.</p>` +
+       `<p class="muted">Auten and Splinter argue that tax-base changes bias top shares built from tax returns; Iselin and Reck note that pass-through business income grew dramatically after 1986. How much of the jump is real is part of the dispute above.</p>`],
+      ["Break in 1962", "method", "Method change",
+       `<p>WID's shares before 1962 are estimated from income-tax trends, not measured from tax microdata. At the switch, the bottom half's share of wealth moves ${signed(wealthGroupShare(1962, 0, 50) - wealthGroupShare(1961, 0, 50))} points (1961 to 1962), and its share of income ${signed(incShare(1961, 0, 50) - incShare(1960, 0, 50))} then ${signed(incShare(1962, 0, 50) - incShare(1961, 0, 50))} points (1960 to 1962), the largest year-to-year moves in the bottom half's share of either series. Compare levels across 1962 with care.</p>`],
+      ["Household net worth total", "fixed", "Corrected",
+       `<p>The dollar views had used the Fed's total for households <em>and nonprofits</em>, about 5–6% more than households alone. They now use households only from ${nw.from} (Fed Financial Accounts table B.101.h). Before that the Fed doesn't separate the two, so 1950–${+nw.from.slice(0, 4) - 1} use the combined total × ${(nw.households_part * 100).toFixed(1)}%, the households' part in ${nw.from}.</p>`],
+      ["Missing or estimated data", "gap", "Gaps",
+       `<p>Estimated rather than measured: 1950–1961 (WID, from income-tax trends); ${span(years.filter(y => W.tier[y] === "wid_nowcast"))} (WID preliminary); ${span(years.filter(y => W.tier[y] === "extended_dfa"))} (extended here with Fed DFA group changes); ${W.estimated.flat().reduce((a, b) => a + b, 0)} of ${100 * years.length} wealth cells that WID rounds to 0.00% (grey); household net worth for 1950–${+nw.from.slice(0, 4) - 1}.</p>` +
+       `<p>Missing: October 2025 CPI-U (never published); ${years.at(-1)} is a partial year (${(W.year_notes[years.at(-1)] || []).map(n => n.replace(/\.$/, "").replace(/^[A-Z](?=[a-z])/, c => c.toLowerCase())).join("; ")}); no 1% income data after ${incLast}; the survey behind the breakdowns and the age slider runs only every three years, ${SV[0]}–${SV.at(-1)}, with nothing before ${SV[0]}.</p>`],
+    ];
+    document.getElementById("disputes-intro").textContent =
+      "The chart's shares come from WID.world. Here they are compared with the Fed's own distribution data, the Survey of Consumer Finances, and published research that disputes them. " +
+      `In the year table, ⚑ marks a group whose share differs from the Fed's or the survey's by ${DISPUTE_PP} points or more.`;
+    document.getElementById("disputes").innerHTML = rows.map(([topic, cls, label, body]) =>
+      `<tr><td><strong>${topic}</strong><br><span class="badge ${cls}">${label}</span></td><td>${body}</td></tr>`).join("");
+  }
 
   // ---------- verification
   function renderVerification() {
@@ -1158,7 +1261,7 @@
   document.getElementById("key-guess").textContent =
     `Estimated (${nEst.toLocaleString()} of ${(100 * years.length).toLocaleString()}): WID shows exactly 0.00%`;
 
-  drawTiers(); renderVerification(); update();
+  drawTiers(); renderVerification(); renderDisputes(); update();
   const mq = matchMedia("(prefers-color-scheme: dark)");
   mq.addEventListener("change", () => { drawTiers(); draw(); });
   new MutationObserver(() => { drawTiers(); draw(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });

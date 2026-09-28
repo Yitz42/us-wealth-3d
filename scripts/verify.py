@@ -74,6 +74,28 @@ CLAIMS = {
         ("control_z1_billions", "contradicts",
          "Total net worth of US households and nonprofit organizations, measured in billions of US dollars."),
     ],
+    "BOGZ1FL192090005Q": [("z1_households_only", "supports",
+                           "Net worth of US households alone (the household sector, not combined with nonprofits), measured in millions of US dollars.")],
+    # The page's "Where sources disagree" section summarizes these papers; each summary is checked here.
+    "SmithZidarZwick_2023": [
+        ("szz_top1_lower", "supports",
+         "Smith, Zidar and Zwick estimate the top 1% share of US wealth in 2016 at 33.7%, lower than the 36.6% in the series of Piketty, Saez and Zucman."),
+        ("szz_top1_rising", "supports", "Smith, Zidar and Zwick also find that the top 1% share of wealth rose between 1989 and 2016."),
+        ("control_szz_top1_fell", "contradicts", "Smith, Zidar and Zwick find that the top 1% share of wealth fell between 1989 and 2016."),
+    ],
+    "AutenSplinter_2024": [
+        ("as_lower", "supports",
+         "Auten and Splinter estimate top pre-tax income shares that are lower, and have risen less since 1980, than other studies using tax data."),
+        ("control_as_aftertax_rise", "contradicts", "Auten and Splinter find that top after-tax income shares have risen sharply."),
+    ],
+    "PikettySaezZucman_2024_comment": [
+        ("psz_reply", "supports",
+         "Piketty, Saez and Zucman argue that, once some of Auten and Splinter's assumptions are corrected, their estimates become similar in level and trend to Piketty, Saez and Zucman's own."),
+    ],
+    "IselinReck_2024_comment": [
+        ("ir_reply", "supports",
+         "Iselin and Reck argue that the evidence threatens Auten and Splinter's assumption about who holds unreported income, especially pass-through business income."),
+    ],
     "TTLHH": [("households", "supports", "The number of US households, measured in thousands.")],
     "CPIAUCNS": [("cpi_u", "supports",
                   "CPI-U: the consumer price index for all urban consumers, all items, US city average, not seasonally adjusted.")],
@@ -197,7 +219,10 @@ def code_checks(w):
            f"years {', '.join(w['dfa_quarter_used'])}; scale factors agree within {max(spreads, default=0):.2e}")
 
     # 5. macro inputs match FRED raw files
-    z1, hh = fred("TNWBSHNO"), {int(d[:4]): v for d, v in fred("TTLHH").items()}
+    z1, z1_hh, hh = fred("TNWBSHNO"), fred("BOGZ1FL192090005Q"), {int(d[:4]): v for d, v in fred("TTLHH").items()}
+    first_hh = min(z1_hh)
+    hh_part = z1_hh[first_hh] / z1[first_hh]  # households' part of households + nonprofits, first quarter both exist
+    n_scaled = 0
     cpi = defaultdict(list)
     for d, v in fred("CPIAUCNS").items():
         cpi[int(d[:4])].append(v)
@@ -206,10 +231,15 @@ def code_checks(w):
         m = w["macro"][str(y)]
         qy, qn = m["net_worth_quarter"].split(":Q")
         month = f"{qy}-{(int(qn) - 1) * 3 + 1:02d}-01"
-        if abs(m["net_worth_total"] - z1[month] * 1e6) > 1: bad.append((y, "net worth"))
+        expect_nw = z1_hh[month] if month in z1_hh else z1[month] * hh_part  # households only; earlier years scaled
+        n_scaled += month not in z1_hh
+        if abs(m["net_worth_total"] - expect_nw * 1e6) > 1: bad.append((y, "net worth"))
         if y in hh and abs(m["households"] - hh[y] * 1e3) > 1: bad.append((y, "households"))
         if abs(m["cpi_u"] - statistics.mean(cpi[y])) > 1e-9: bad.append((y, "cpi"))
-    record("Macro inputs match FRED files", not bad, f"{len(years)} years x 3 series" + (f"; bad {bad[:3]}" if bad else ""))
+    record("Macro inputs match FRED files", not bad,
+           f"{len(years)} years x 3 series; household net worth is households only (BOGZ1FL192090005Q) from {first_hh[:4]}, "
+           f"and for the {n_scaled} earlier years the households-and-nonprofits total (TNWBSHNO) x {hh_part:.1%}"
+           + (f"; bad {bad[:3]}" if bad else ""))
 
     # 6. every dollar cell obeys share x total / (households/100), within what the
     #    stored share's 4-decimal rounding (±0.00005 pp) can explain
@@ -246,8 +276,8 @@ def code_checks(w):
                 couples = F["women_couple"][si][b]
                 worst_cat = max(worst_cat, abs(sum(F[k][si][b] for k, _ in scf["categories"]["gender"]) - F["adults"][si][b]) / wb,
                                 abs(F["adults"][si][b] - wb - couples) / wb, abs(F["men_couple"][si][b] - couples) / wb)
-                total = F["networth" if ranking == "wealth" else "income"][si][b]
-                worst_part = max(worst_part, abs(F["part_women"][si][b] + F["part_men"][si][b] - total))
+                bin_sum = F["networth" if ranking == "wealth" else "income"][si][b]
+                worst_part = max(worst_part, abs(F["part_women"][si][b] + F["part_men"][si][b] - bin_sum))
                 assets = F["assets"][si][b]
                 if assets > 1e6:
                     worst_hold = max(worst_hold, abs(sum(F[k][si][b] for k, _ in scf["categories"]["holdings"]) - assets) / assets)
