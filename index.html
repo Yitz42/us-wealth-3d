@@ -97,6 +97,8 @@
   .range input[type=number] { width: 64px; font: inherit; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-1); color: var(--text-primary); }
 
   .chart-key { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 0; font-size: 12px; color: var(--text-secondary); }
+  .chart-key .footnote { flex-basis: 100%; color: var(--text-muted); }
+  .chart-key .footnote::before { display: none; }
   .chart-key span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; background: var(--c); }
   .view-note { margin: 12px 0 0; font-size: 13px; color: var(--text-secondary); min-height: 20px; }
   #chart { width: 100%; height: 620px; margin-top: 8px; }
@@ -883,7 +885,7 @@
   };
   const group = () => state.breakdown === "sector" ? state.sector : state.breakdown;
   const BD = {
-    gender: { denom: "w", title: "Household type", unit: "households" },
+    gender: { denom: "adults", title: "Gender", unit: "adults" },
     race: { denom: "w", title: "Race", unit: "households" },
     holdings: { denom: "assets", title: "What the assets are held in", unit: "assets" },
     occupation: { denom: "w", title: "Occupation", unit: "households" },
@@ -893,7 +895,15 @@
   // Who the breakdown counts, for titles and notes.
   const bdWho = () => !ageOn() ? "" : bdAgeFiltered() ? `, households headed by someone ${ageLabel()}`
     : group() === "age" ? ", all ages" : ", all ages (breakdowns split by age only at 40, 55 and 70)";
-  const catColor = i => css(`--cat-${i + 1}`);
+  // Category colours. Gender: women and men in the first two colours, and people in couples in a
+  // lighter shade of each, starred because the survey can't tell the partners' sexes apart.
+  function bdColor(g, ci) {
+    if (g !== "gender") return css(`--cat-${ci + 1}`);
+    const light = c => mix(css(c), css("--surface-1"), 0.5);
+    return [css("--cat-1"), light("--cat-1"), light("--cat-2"), css("--cat-2")][ci];
+  }
+  const COUPLE_NOTE = "* A couple (married or living with a partner) is counted as one woman and one man. The survey records only one partner's sex, so same-sex couples can't be identified.";
+  const bdLabel = (g, k, label) => g === "gender" && k.endsWith("_couple") ? `${label}*` : label;
   // Weighted sums over percentiles pLo..pHi in survey si.
   function sums(si, keys, pLo, pHi) {
     const out = {};
@@ -905,7 +915,7 @@
   // a year outside 1989-2022 from the nearest survey.
   function sharesAt(group, yr, pLo, pHi) {
     const cats = S.categories[group].map(c => c[0]), denom = BD[group].denom;
-    const at = si => { const t = sums(si, [...cats, denom, "n", "debt", "w"], pLo, pHi);
+    const at = si => { const t = sums(si, [...new Set([...cats, denom, "n", "debt", "w", "assets", "part_women", "part_men"])], pLo, pHi);
                        return { sh: Object.fromEntries(cats.map(k => [k, t[denom] ? t[k] / t[denom] : 0])), t }; };
     if (yr <= SV[0]) return { ...at(0), surveys: [SV[0]], interp: false, outside: yr < SV[0] };
     if (yr >= SV[SV.length - 1]) return { ...at(SV.length - 1), surveys: [SV[SV.length - 1]], interp: false, outside: yr > SV[SV.length - 1] };
@@ -930,7 +940,8 @@
     const avgT = k => parts.reduce((a, q) => a + q.t[k], 0) / parts.length;
     return { sh, surveys, n: Math.round(n), pLo, pHi, interp: parts.some(q => q.interp),
              centerEst: !SV.includes(yr),  // the bar's own year has no survey
-             outside: parts.every(q => q.outside), debtRatio: avgT("debt") / avgT("assets"), assetsPerHh: avgT("assets") / avgT("w") };
+             outside: parts.every(q => q.outside), debtRatio: avgT("debt") / avgT("assets"), assetsPerHh: avgT("assets") / avgT("w"),
+             partWomen: avgT("part_women"), partMen: avgT("part_men") };
   }
 
   function drawBreakdownSlice(axis, layout3d) {
@@ -940,17 +951,18 @@
     else { x = []; for (let y = Math.max(state.y0, SV[0]); y <= Math.min(state.y1, SV[SV.length - 1]); y++) x.push(y); }
     const results = x.map(v => byYear ? breakdown(g, state.year, v) : breakdown(g, v, state.pct));
     const traces = cats.map(([k, label], ci) => ({
-      type: "bar", name: label, x, y: results.map(r => r.sh[k] * 100),
-      marker: { color: catColor(ci), opacity: results.map(r => r.centerEst ? 0.55 : 1) },
+      type: "bar", name: bdLabel(g, k, label), x, y: results.map(r => r.sh[k] * 100),
+      marker: { color: bdColor(g, ci), opacity: results.map(r => r.centerEst ? 0.55 : 1) },
       customdata: x.map(v => byYear ? `${pctName(v)} percentile` : String(v)),
-      hovertemplate: `%{customdata} · ${label}: %{y:.1f}%<extra></extra>`,
+      hovertemplate: `%{customdata} · ${bdLabel(g, k, label)}: %{y:.1f}%<extra></extra>`,
     }));
     const yaxis = axis({ title: { text: `Share of ${BD[g].unit} (%)`, font: { size: 11 } }, range: [0, 100], ticksuffix: "%" });
     Plotly.react(sliceChart, traces, sliceLayout(layout3d, axis, byYear ? `${isInc() ? "Income" : "Wealth"} percentile` : "Year", yaxis),
                  { responsive: true, displayModeBar: false });
     const key = document.getElementById("bd-key");
-    key.innerHTML = cats.map(([, label], ci) => `<span style="--c: var(--cat-${ci + 1})">${label}</span>`).join("") +
-      `<span style="--c: color-mix(in srgb, var(--text-muted) 55%, var(--surface-1))">Faded: no survey that year (interpolated, or nearest survey)</span>`;
+    key.innerHTML = cats.map(([k, label], ci) => `<span style="--c: ${bdColor(g, ci)}">${bdLabel(g, k, label)}</span>`).join("") +
+      `<span style="--c: color-mix(in srgb, var(--text-muted) 55%, var(--surface-1))">Faded: no survey that year (interpolated, or nearest survey)</span>` +
+      (g === "gender" ? `<span class="footnote">${COUPLE_NOTE}</span>` : "");
   }
 
   // ---------- the panel for one clicked bar
@@ -986,15 +998,19 @@
     const g = group(), cats = S.categories[g], r = breakdown(g, yr, p);
     bigEl.hidden = true; bar.hidden = false;
     bar.innerHTML = cats.map(([k, label], ci) =>
-      `<div style="flex: ${Math.max(r.sh[k], 0)} 0 0; background: var(--cat-${ci + 1})" title="${label} ${(r.sh[k] * 100).toFixed(1)}%"></div>`).join("");
+      `<div style="flex: ${Math.max(r.sh[k], 0)} 0 0; background: ${bdColor(g, ci)}" title="${bdLabel(g, k, label)} ${(r.sh[k] * 100).toFixed(1)}%"></div>`).join("");
+    // Women's part of the group's net worth or income, a couple's split equally; only when both parts are positive.
+    const heldWomen = r.partWomen > 0 && r.partMen > 0 ? r.partWomen / (r.partWomen + r.partMen) : null;
     tbody.innerHTML = cats.map(([k, label], ci) =>
-      `<tr><td><span class="swatch" style="background: var(--cat-${ci + 1})"></span>${label}</td><td class="num">${(r.sh[k] * 100).toFixed(1)}% of ${BD[g].unit}</td></tr>`).join("") +
+      `<tr><td><span class="swatch" style="background: ${bdColor(g, ci)}"></span>${bdLabel(g, k, label)}</td><td class="num">${(r.sh[k] * 100).toFixed(1)}% of ${BD[g].unit}</td></tr>`).join("") +
+      (g === "gender" && heldWomen != null ? `<tr><td>${isInc() ? "Income" : "Wealth"} held by women*</td><td class="num">${(heldWomen * 100).toFixed(1)}% of this group's ${isInc() ? "income" : "net worth"}</td></tr>` : "") +
       (g === "holdings" ? `<tr><td>Average assets per household</td><td class="num">${money(r.assetsPerHh)} (2022 dollars)</td></tr>
         <tr><td>Debt</td><td class="num">${(r.debtRatio * 100).toFixed(0)}% of assets</td></tr>` : "");
     const surveys = r.surveys.join(", ");
     note.textContent = `Survey of Consumer Finances ${surveys}, ${r.n.toLocaleString()} surveyed households${bdAgeFiltered() ? ` headed by someone ${ageLabel()}` : ""}, ranked by ${isInc() ? "income" : "net worth"} against all ages.` +
       (r.outside ? ` No survey in ${yr}; showing the nearest (${surveys}).` : r.interp ? " Years between surveys are interpolated." : "") +
-      (r.n < 100 ? " Small sample: widen the average for a steadier estimate." : "");
+      (r.n < 100 ? " Small sample: widen the average for a steadier estimate." : "") +
+      (g === "gender" ? ` ${COUPLE_NOTE} Each couple's ${isInc() ? "income" : "net worth"} is split equally between the two, as WID does for the 3-D chart.` : "");
   }
   const avgYIn = document.getElementById("avg-y"), avgPIn = document.getElementById("avg-p");
   avgYIn.addEventListener("change", () => { state.avgY = +avgYIn.value; save(); redrawSlice(); updateCell(); });
@@ -1119,7 +1135,7 @@
   document.getElementById("m-scf").textContent =
     `These come from the Fed's Survey of Consumer Finances (${SV[0]}–${SV[SV.length - 1]}, every three years), which records each surveyed household's net worth, race, household type and holdings. ` +
     `In each survey, households are ranked by net worth and split into 100 groups of equal size, weighted to represent all US households. ` +
-    `Gender is by household type: couples (married or living with a partner) and single women and single men, because the survey can't split a couple's wealth between partners. ` +
+    `Gender counts adults, not households: single women, single men, and the people in couples (married or living with a partner, drawn in lighter shades). The survey records only one partner's sex, so each couple is counted as one woman and one man, and same-sex couples can't be identified. The survey also can't split a couple's wealth between partners, so where wealth held by women is shown, each couple's is split equally, the same rule WID uses for the 3-D chart. ` +
     `Race is the survey's four groups. Location of money splits total assets into seven kinds of holding, with debt shown separately. ` +
     `Age is the age of the survey's reference person (the household head), in the Fed's four age groups. With an age chosen above the chart, the other breakdowns count only households of that age. ` +
     `Work sector is the reference person's occupation (managerial or professional; technical, sales and services; production, labor and farming; not working) or work status (works for someone else; self-employed; retired, disabled, or not working at 65 or older; not working, mostly under 65); the public survey files don't break out industries in more detail. ` +

@@ -51,7 +51,7 @@
   {
    "check": "SCF: household groups add up to each bin",
    "ok": true,
-   "detail": "gender, race, occupation and work status; largest relative gap 2.0e-06 (stored sums are rounded to whole households)",
+   "detail": "race, occupation and work status add up to households; women and men add up to adults (households plus the second partner in each couple), and their net worth or income to the bin's; largest relative gap 2.2e-06, largest dollar gap $1 (stored sums are rounded to whole units)",
    "info": false
   },
   {
@@ -63,7 +63,7 @@
   {
    "check": "SCF households vs Census count",
    "ok": true,
-   "detail": "SCF weighted households vs FRED TTLHH: 1989 +0%, 1992 +0%, 1995 +0%, 1998 +0%, 2001 -2%, 2004 +0%, 2007 +0%, 2010 +0%, 2013 +0%, 2016 +0%, 2019 +0%, 2022 +0%",
+   "detail": "SCF weighted households vs FRED TTLHH: 1989 +13095801%, 1992 +11684702%, 1995 +14369340%, 1998 +17519075%, 2001 +21109547%, 2004 +23487208%, 2007 +26792331%, 2010 +23036412%, 2013 +23882969%, 2016 +32837413%, 2019 +32224828%, 2022 +37230508%",
    "info": true
   },
   {
@@ -327,9 +327,9 @@
     "verdict": "supports",
     "confidence": 1.0,
     "probabilities": {
-     "not_addressed": 0.0,
      "contradicts": 0.0,
-     "supports": 1.0
+     "supports": 1.0,
+     "not_addressed": 0.0
     },
     "status": "pass",
     "control": false
@@ -342,9 +342,9 @@
     "verdict": "supports",
     "confidence": 0.99,
     "probabilities": {
-     "not_addressed": 0.0,
-     "supports": 1.0,
-     "contradicts": 0.0
+     "contradicts": 0.01,
+     "supports": 0.99,
+     "not_addressed": 0.0
     },
     "status": "pass",
     "control": false
@@ -357,9 +357,9 @@
     "verdict": "supports",
     "confidence": 0.98,
     "probabilities": {
-     "not_addressed": 0.0,
      "contradicts": 0.01,
-     "supports": 0.99
+     "supports": 0.99,
+     "not_addressed": 0.0
     },
     "status": "pass",
     "control": false
@@ -372,9 +372,9 @@
     "verdict": "contradicts",
     "confidence": 1.0,
     "probabilities": {
-     "not_addressed": 0.0,
      "contradicts": 1.0,
-     "supports": 0.0
+     "supports": 0.0,
+     "not_addressed": 0.0
     },
     "status": "pass",
     "control": true
@@ -387,9 +387,9 @@
     "verdict": "supports",
     "confidence": 1.0,
     "probabilities": {
-     "not_addressed": 0.0,
      "contradicts": 0.0,
-     "supports": 1.0
+     "supports": 1.0,
+     "not_addressed": 0.0
     },
     "status": "pass",
     "control": false
@@ -402,12 +402,42 @@
     "verdict": "supports",
     "confidence": 1.0,
     "probabilities": {
-     "not_addressed": 0.0,
      "contradicts": 0.0,
-     "supports": 1.0
+     "supports": 1.0,
+     "not_addressed": 0.0
     },
     "status": "pass",
     "control": false
+   },
+   {
+    "id": "scf_sex",
+    "source": "SCF_codebook",
+    "claim": "The sex recorded for a household is the sex of its reference person.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 0.97,
+    "probabilities": {
+     "contradicts": 0.01,
+     "supports": 0.98,
+     "not_addressed": 0.01
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "control_scf_sex_both",
+    "source": "SCF_codebook",
+    "claim": "The sex recorded for a household is the sex of every adult in it.",
+    "expect": "contradicts",
+    "verdict": "contradicts",
+    "confidence": 0.99,
+    "probabilities": {
+     "contradicts": 1.0,
+     "supports": 0.0,
+     "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": true
    },
    {
     "id": "scf_age",
@@ -415,11 +445,11 @@
     "claim": "The age recorded for a household is the age of its reference person.",
     "expect": "supports",
     "verdict": "supports",
-    "confidence": 0.96,
+    "confidence": 0.95,
     "probabilities": {
-     "not_addressed": 0.01,
      "contradicts": 0.02,
-     "supports": 0.97
+     "supports": 0.97,
+     "not_addressed": 0.01
     },
     "status": "pass",
     "control": false
@@ -430,11 +460,11 @@
     "claim": "AGE holds the age itself as a number; the survey's age classes are then cut from it at 35, 45, 55, 65 and 75.",
     "expect": "supports",
     "verdict": "supports",
-    "confidence": 0.98,
+    "confidence": 0.97,
     "probabilities": {
-     "not_addressed": 0.0,
+     "contradicts": 0.01,
      "supports": 0.99,
-     "contradicts": 0.01
+     "not_addressed": 0.0
     },
     "status": "pass",
     "control": false
@@ -445,11 +475,11 @@
     "claim": "The age recorded for a household is the age of its oldest member.",
     "expect": "contradicts",
     "verdict": "contradicts",
-    "confidence": 0.93,
+    "confidence": 0.95,
     "probabilities": {
-     "not_addressed": 0.05,
-     "contradicts": 0.95,
-     "supports": 0.0
+     "contradicts": 0.97,
+     "supports": 0.0,
+     "not_addressed": 0.03
     },
     "status": "pass",
     "control": true

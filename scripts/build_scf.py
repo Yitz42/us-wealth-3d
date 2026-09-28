@@ -8,7 +8,10 @@ the five copies, so every row is used with its weight.
 For each survey, households are ranked twice, by NETWORTH and by INCOME (for the page's
 Wealth and Income views), and each ranking is split into 100 bins of equal weighted size. Per bin we keep raw weighted sums (not shares), so the page can average
 any window of percentiles or years by adding sums before dividing:
-  - households by household type (couple / single woman / single man),
+  - adults by gender and marital status: single women, women in couples, men in couples, single
+    men. A couple counts as one woman and one man, because the summary extract records only the
+    reference person's sex (HHSEX) and can't identify same-sex couples. Also the net worth (wealth
+    ranking) or income (income ranking) held by women and by men, a couple's split equally,
   - households by race (RACECL4),
   - households by occupation (OCCAT2) and by work status (OCCAT1) of the reference person,
   - households by age of the reference person (AGE), in the Fed DFA's four age groups,
@@ -32,7 +35,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 SCF = ROOT / "data" / "raw" / "scf"
 SURVEYS = [1989, 1992, 1995, 1998, 2001, 2004, 2007, 2010, 2013, 2016, 2019, 2022]
 
-GENDER = [("couple", "Couples"), ("single_woman", "Single women"), ("single_man", "Single men")]
+# Adults, not households: a couple adds one to each of the two middle groups (see household_type).
+GENDER = [("women_single", "Single women"), ("women_couple", "Married or partnered women"),
+          ("men_couple", "Married or partnered men"), ("men_single", "Single men")]
 RACE = [("white", "White"), ("black", "Black"), ("hispanic", "Hispanic"), ("other", "Other or multiple races")]
 OCCUPATION = [("occ_prof", "Managerial or professional"), ("occ_tech", "Technical, sales, services"),
               ("occ_other", "Production, labor, farming"), ("occ_none", "Not working")]
@@ -57,7 +62,7 @@ HOLDINGS = [  # label, SCF summary variables summed
 def household_type(row):
     if row["MARRIED"] == "1":  # married or living with a partner
         return "couple"
-    return "single_woman" if row["HHSEX"] == "2" else "single_man"
+    return "women_single" if row["HHSEX"] == "2" else "men_single"
 
 
 RACE_CODE = {"1": "white", "2": "black", "3": "hispanic", "4": "other"}
@@ -78,6 +83,7 @@ def build_survey(year, rank_by):
 
     def blank():
         return {"n": 0, "w": 0.0, "networth": 0.0, "income": 0.0, "debt": 0.0, "assets": 0.0,
+                "adults": 0.0, "part_women": 0.0, "part_men": 0.0,
                 **{k: 0.0 for k, _ in GENDER + RACE + OCCUPATION + WORK + AGES}, **{k: 0.0 for k, _, _ in HOLDINGS}}
 
     bins = [blank() for _ in range(100)]
@@ -89,8 +95,8 @@ def build_survey(year, rank_by):
         cum += w
         b_i = min(99, int(mid * 100))
         a = age_group(r)
-        add(bins[b_i], w, r, a)
-        add(by_age[a][b_i], w, r, a)
+        add(bins[b_i], w, r, a, nw)
+        add(by_age[a][b_i], w, r, a, nw)
         c = cells[b_i].setdefault(int(r["AGE"]), [0.0, 0.0, 0.0])
         c[0] += w
         c[1] += w * float(r["NETWORTH"])
@@ -98,8 +104,8 @@ def build_survey(year, rank_by):
     return bins, by_age, cells, total_w, len(rows)
 
 
-def add(b, w, r, a):
-    """Add one row (weight w, age group a) to bin b."""
+def add(b, w, r, a, ranked):
+    """Add one row (weight w, age group a, ranked by net worth or income = `ranked`) to bin b."""
     b["n"] += 1
     b["w"] += w
     b["networth"] += w * float(r["NETWORTH"])
@@ -107,7 +113,17 @@ def add(b, w, r, a):
     b[a] += w
     b["debt"] += w * float(r["DEBT"])
     b["assets"] += w * float(r["ASSET"])
-    b[household_type(r)] += w
+    kind = household_type(r)
+    if kind == "couple":  # one woman and one man, each holding half
+        b["adults"] += 2 * w
+        b["women_couple"] += w
+        b["men_couple"] += w
+        b["part_women"] += w * ranked / 2
+        b["part_men"] += w * ranked / 2
+    else:
+        b["adults"] += w
+        b[kind] += w
+        b["part_women" if kind == "women_single" else "part_men"] += w * ranked
     b[RACE_CODE[r["RACECL4"]]] += w
     b[OCC_CODE[r["OCCAT2"]]] += w
     b[WORK_CODE[r["OCCAT1"]]] += w
@@ -147,7 +163,7 @@ def main():
         # age_cells[wealth|income][survey index][bin] = [ages, share of the bin's sum, share of its households]
         "age_cells": {},
     }
-    keys = ["n", "w", "networth", "income", "debt", "assets"] + [k for k, _ in GENDER + RACE + OCCUPATION + WORK + AGES] + [k for k, _, _ in HOLDINGS]
+    keys = ["n", "w", "networth", "income", "debt", "assets", "adults", "part_women", "part_men"] +[k for k, _ in GENDER + RACE + OCCUPATION + WORK + AGES] + [k for k, _, _ in HOLDINGS]
     assert len(keys) == len(set(keys)), "category keys must be unique across groups"
     age_keys = [a for a, _ in AGES]
     for name, var in RANKINGS.items():
@@ -176,7 +192,7 @@ def main():
             age_cells.append(survey_cells)
             top = bins[99]
             print(f"{name} {year}: {n_rows // 5:,} households surveyed, {total_w / 1e6:.1f}M weighted; "
-                  f"top 1%: {top['white'] / top['w']:.0%} White, {top['couple'] / top['w']:.0%} couples, "
+                  f"top 1%: {top['white'] / top['w']:.0%} White, {(top['women_single'] + top['women_couple']) / top['adults']:.0%} women, "
                   f"{top['occ_prof'] / top['w']:.0%} managers/professionals, {top['work_self'] / top['w']:.0%} self-employed, "
                   f"{top['age_u40'] / top['w']:.0%} under 40; {n_mixed} bins with mixed-sign ages")
     js = json.dumps(out, separators=(",", ":"))

@@ -7,7 +7,9 @@ household, real dollars (CPI-U), real dollars (PCE price index), and years of co
 "Years shown" limits the year range. A slicer cuts the chart by year (all percentiles in one year) or by percentile (one group across
 all years), shows that slice as a flat bar chart with a summary table, and can hide everything past it.
 Under the slicer, "Show" switches the flat chart between Wealth and three breakdowns from the Fed's
-Survey of Consumer Finances (1989–2022, every three years): Gender (couples, single women, single men),
+Survey of Consumer Finances (1989–2022, every three years): Gender (women and men as a share of adults,
+with married or partnered people in lighter shades; each couple counts as one woman and one man, since the
+survey records only one partner's sex),
 Race, Location of money (what assets are held in), Work sector (occupation or work status), and Age of the
 household head. With the Income measure selected, these rank households by income instead of net worth.
 "Age of household head" is a two-handle slider (any range of ages, 17–95, with buttons for the Fed DFA's

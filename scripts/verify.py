@@ -60,6 +60,9 @@ CLAIMS = {
          "Occupation groups are managerial or professional; technical, sales or services; other work such as production, labor or farming; and not working."),
         ("scf_work_status", "supports",
          "Work status groups are: working for someone else; self-employed or in a partnership; retired or disabled, plus anyone else not working who is 65 or older; and other people not working, mainly under 65."),
+        # The page's women/men split rests on this: only one partner's sex is recorded, so couples count as one of each.
+        ("scf_sex", "supports", "The sex recorded for a household is the sex of its reference person."),
+        ("control_scf_sex_both", "contradicts", "The sex recorded for a household is the sex of every adult in it."),
         ("scf_age", "supports", "The age recorded for a household is the age of its reference person."),
         # The page regroups AGE into the Fed DFA's ranges, which needs AGE to be a plain number, not a class code.
         ("scf_age_numeric", "supports", "AGE holds the age itself as a number; the survey's age classes are then cut from it at 35, 45, 55, 65 and 75."),
@@ -229,7 +232,7 @@ def code_checks(w):
     avg = statistics.mean(d for _, d in diffs)
     # 7. SCF bins (breakdowns), ranked by wealth and by income
     scf = json.loads((ROOT / "data" / "scf.json").read_text())
-    worst_bin, worst_cat, worst_hold = 0.0, 0.0, 0.0
+    worst_bin, worst_cat, worst_hold, worst_part = 0.0, 0.0, 0.0, 0.0
     hh_gap = []
     for ranking, F in scf["rankings"].items():
         for si, year in enumerate(scf["surveys"]):
@@ -237,8 +240,14 @@ def code_checks(w):
             worst_bin = max(worst_bin, max(abs(wb / total * 100 - 1) for wb in F["w"][si]))
             for b in range(100):
                 wb = F["w"][si][b]
-                for group in ("gender", "race", "occupation", "work"):
+                for group in ("race", "occupation", "work"):
                     worst_cat = max(worst_cat, abs(sum(F[k][si][b] for k, _ in scf["categories"][group]) - wb) / wb)
+                # gender counts adults: every household once, plus the second partner in a couple
+                couples = F["women_couple"][si][b]
+                worst_cat = max(worst_cat, abs(sum(F[k][si][b] for k, _ in scf["categories"]["gender"]) - F["adults"][si][b]) / wb,
+                                abs(F["adults"][si][b] - wb - couples) / wb, abs(F["men_couple"][si][b] - couples) / wb)
+                total = F["networth" if ranking == "wealth" else "income"][si][b]
+                worst_part = max(worst_part, abs(F["part_women"][si][b] + F["part_men"][si][b] - total))
                 assets = F["assets"][si][b]
                 if assets > 1e6:
                     worst_hold = max(worst_hold, abs(sum(F[k][si][b] for k, _ in scf["categories"]["holdings"]) - assets) / assets)
@@ -246,8 +255,10 @@ def code_checks(w):
                 hh_gap.append(f"{year} {total / (hh[year] * 1e3) - 1:+.0%}")
     record("SCF: each percentile bin holds 1% of households", worst_bin < 0.25,
            f"{len(scf['surveys'])} surveys x 2 rankings (wealth, income); largest bin is off by {worst_bin:.2f} percentage points of households")
-    record("SCF: household groups add up to each bin", worst_cat < 1e-5,  # sums are stored rounded to whole units
-           f"gender, race, occupation and work status; largest relative gap {worst_cat:.1e} (stored sums are rounded to whole households)")
+    record("SCF: household groups add up to each bin", worst_cat < 1e-5 and worst_part <= 2,  # sums are stored rounded to whole units
+           f"race, occupation and work status add up to households; women and men add up to adults (households plus the second "
+           f"partner in each couple), and their net worth or income to the bin's; largest relative gap {worst_cat:.1e}, "
+           f"largest dollar gap ${worst_part:.0f} (stored sums are rounded to whole units)")
     record("SCF: the seven holding types add up to total assets", worst_hold < 1e-6,
            f"largest relative gap {worst_hold:.1e} (bins with over $1M of weighted assets)")
     record("SCF households vs Census count", True, "SCF weighted households vs FRED TTLHH: " + ", ".join(hh_gap), info=True)
