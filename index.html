@@ -117,6 +117,8 @@
   .trend p { margin: 4px 0 0; font-size: 13px; color: var(--text-secondary); max-width: 900px; }
   #trend-chart { width: 100%; height: 440px; margin-top: 8px; }
   @media (max-width: 640px) { #trend-chart { height: 380px; } }
+  #typ-chart, #cbo-chart { width: 100%; height: 440px; margin-top: 8px; }
+  @media (max-width: 640px) { #typ-chart, #cbo-chart { height: 380px; } }
   .trend-sum { font-variant-numeric: tabular-nums; }
 
   /* 3-D chart and cross-section side by side on wide screens */
@@ -1343,6 +1345,25 @@
     updateSlice(); draw(); drawTrend(); drawTx(); drawTyp(); drawCbo(); save();
   }
 
+  // A legend below a chart wraps onto more lines as the chart narrows. After drawing, give it the room
+  // Plotly measured (plus the year labels), growing the chart so the plot area keeps plotH.
+  function fitLegend(el, plotH, again = true) {
+    const L = el._fullLayout;
+    if (!el.clientWidth || !L || !L.legend || !L.legend._height) return;  // hidden tab: fitted when shown
+    const need = Math.ceil(L.legend._height) + 44;
+    if (Math.abs(L.margin.b - need) <= 4) return;
+    // Size through the container, not layout.height, so Plotly keeps autosizing the width.
+    el.style.height = `${plotH + need}px`;
+    // A new width can re-wrap the legend, so check once more after resizing.
+    Plotly.relayout(el, { "margin.b": need }).then(() => Plotly.Plots.resize(el)).then(() => again && fitLegend(el, plotH, false));
+  }
+  // The Trends charts lay out differently on narrow screens (end labels, legend room): redraw on resize.
+  let trendResize = 0;
+  window.addEventListener("resize", () => {
+    clearTimeout(trendResize);
+    trendResize = setTimeout(() => { if (!document.getElementById("panel-trends").hidden) { drawTrend(); drawTyp(); drawCbo(); } }, 150);
+  });
+
   // ---------- Trends: the four groups over time, plus the top 0.1% and 0.01%
   // Follows the measure, view, height scale and age; always covers every year with data.
   const trendChart = document.getElementById("trend-chart"), trendTop = document.getElementById("trend-top");
@@ -1535,6 +1556,7 @@
       xaxis: { color: text, gridcolor: grid, showgrid: false, zeroline: false, range: [xs[0] - 1.5, xs.at(-1) + 0.5] },
       yaxis, shapes, annotations,
     }, { responsive: true, displayModeBar: false });
+    fitLegend(trendChart, narrow ? 300 : 376);
     if (!trendBound) {
       trendBound = true;
       trendChart.on("plotly_click", e => {
@@ -1760,6 +1782,7 @@
       xaxis: { color: text, gridcolor: grid, showgrid: false, zeroline: false, range: [SV[0] - 1, years.at(-1) + 1] },
       yaxis,
     }, { responsive: true, displayModeBar: false });
+    fitLegend(typChart, narrow ? 320 : 376);
     const unit = { nominal: "in each year's dollars", real_cpi: `in ${base} dollars, adjusted with CPI-U`, real_pce: `in ${base} dollars, adjusted with the PCE price index`,
                    spend_years: "in years of average consumer spending per household" }[v];
     document.getElementById("typ-sub").textContent =
@@ -1834,6 +1857,7 @@
       xaxis: { color: text, gridcolor: grid, showgrid: false, zeroline: false, range: [xs[0] - 1, xs.at(-1) + 1] },
       yaxis, shapes: [{ type: "line", xref: "x", yref: "paper", x0: ty, x1: ty, y0: 0, y1: 1, line: { color: css("--highlight"), width: 1.5, dash: "dash" } }],
     }, { responsive: true, displayModeBar: false });
+    fitLegend(cboChart, narrow ? 320 : 376);
     const dv = v === "share" ? "real_cpi" : v, dfmt = VIEWS[dv].fmt;
     const unit = { nominal: "each year's dollars", real_cpi: `${base} dollars, CPI-U`, real_pce: `${base} dollars, PCE`, spend_years: "years of average consumer spending per household" }[dv];
     document.getElementById("cbo-title").textContent = v === "share"
