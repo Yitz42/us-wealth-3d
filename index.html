@@ -453,7 +453,7 @@
     <div class="trend-head">
       <h2 id="trend-title">Share of wealth held by each group</h2>
       <div style="display:flex; flex-wrap:wrap; gap:6px 18px">
-        <label class="check" for="trend-top"><input type="checkbox" id="trend-top"> Top 0.1% and 0.01% (dashed)</label>
+        <label class="check" for="trend-top" id="trend-top-wrap"><input type="checkbox" id="trend-top"> Top 0.1% and 0.01% (dashed)</label>
         <span class="check" id="trend-src-wrap">Source
           <span class="seg" role="group" aria-label="Whose numbers the lines show" id="trend-src-seg">
             <button data-src="wid" aria-pressed="true" title="WID.world: adults, 1950 on">WID</button>
@@ -666,28 +666,37 @@
   document.getElementById("scale-seg").addEventListener("click", e => { if (e.target.dataset.scale) { state.scale = e.target.dataset.scale; update(); } });
   // Two-handle sliders for the 3-D map's years and percentiles, built like the age slider:
   // dragging redraws once per frame, and the handles can't cross.
-  function dualSlider(loId, hiId, outId, min, max, [kLo, kHi], text) {
+  // bounds() gives the slider's ends, so it only offers values that have data (e.g. no 2025-26 for income).
+  function dualSlider(loId, hiId, outId, bounds, [absMin, absMax], [kLo, kHi], text) {
     const lo = document.getElementById(loId), hi = document.getElementById(hiId), fill = lo.parentElement.querySelector(".dual-fill");
-    for (const inp of [lo, hi]) { inp.min = min; inp.max = max; }
     let frame = 0;
     const sync = () => {
-      lo.value = state[kLo]; hi.value = state[kHi];
-      const pos = v => (v - min) / (max - min) * 100;
-      fill.style.left = `${pos(state[kLo])}%`; fill.style.width = `${pos(state[kHi]) - pos(state[kLo])}%`;
-      document.getElementById(outId).textContent = text();
-      hi.style.zIndex = state[kLo] >= max - 1 ? 0 : 2; lo.style.zIndex = 1;
+      const [min, max] = bounds();
+      for (const inp of [lo, hi]) { inp.min = min; inp.max = max; }
+      const a = Math.min(max, Math.max(min, state[kLo])), b = Math.min(max, Math.max(min, state[kHi]));
+      lo.value = a; hi.value = b;
+      const pos = v => max > min ? (v - min) / (max - min) * 100 : 0;
+      fill.style.left = `${pos(a)}%`; fill.style.width = `${pos(b) - pos(a)}%`;
+      document.getElementById(outId).textContent = text(a, b, min, max);
+      hi.style.zIndex = a >= max - 1 ? 0 : 2; lo.style.zIndex = 1;
     };
     for (const [inp, isLo] of [[lo, true], [hi, false]]) inp.addEventListener("input", () => {
-      const v = +inp.value;
-      if (isLo) state[kLo] = Math.min(v, state[kHi]); else state[kHi] = Math.max(v, state[kLo]);
+      const [min, max] = bounds(), v = +inp.value;
+      // Store the value; an end dragged all the way out means "no limit", so a later change of
+      // measure or age can offer more years again.
+      if (isLo) state[kLo] = v <= min ? absMin : Math.min(v, state[kHi]);
+      else state[kHi] = v >= max ? absMax : Math.max(v, state[kLo]);
       sync(); cancelAnimationFrame(frame); frame = requestAnimationFrame(update);
     });
     return sync;
   }
-  const syncYears = dualSlider("y-lo", "y-hi", "yr-out", years[0], years[years.length - 1], ["y0", "y1"],
-    () => state.y0 === years[0] && state.y1 === years[years.length - 1] ? "All years" : `${state.y0}–${state.y1}`);
-  const syncPcts = dualSlider("p-lo", "p-hi", "pct-out", 1, 100, ["lo", "hi"],
-    () => state.lo === 1 && state.hi === 100 ? "All" : `${state.lo - 1}–${state.hi}%`);
+  // Years with data for the current measure and age: income stops at WID's last year; ages start with the survey.
+  const dataYears = () => [Math.max(isInc() ? INC.years[0] : years[0], ageOn() ? SV[0] : -Infinity),
+                           isInc() ? INC.years[INC.years.length - 1] : years[years.length - 1]];
+  const syncYears = dualSlider("y-lo", "y-hi", "yr-out", dataYears, [years[0], years[years.length - 1]], ["y0", "y1"],
+    (a, b, min, max) => a === min && b === max ? "All years" : `${a}–${b}`);
+  const syncPcts = dualSlider("p-lo", "p-hi", "pct-out", () => [1, 100], [1, 100], ["lo", "hi"],
+    (a, b) => a === 1 && b === 100 ? "All" : `${a - 1}–${b}%`);
   // Year indices inside the chosen range.
   // Wealth or income: same 1% bins, different WID series. Income stops at WID's last year.
   const INC = W.income, isInc = () => state.measure === "income";
@@ -1301,19 +1310,9 @@
   const fedOK = () => !isInc() && !ageOn();
   const trendSource = () => fedOK() ? state.trendSrc : "wid";
   const fedValue = (g, j) => FED.quarter[years[j]] ? FED.groups[g][state.view][j] : null;
-  // Choosing the Fed (or Compare) always works: it moves the page to what the Fed covers (wealth,
-  // all ages) and says so under the title, instead of leaving a button that does nothing.
-  let srcNotice = "";
   document.getElementById("trend-src-seg").addEventListener("click", e => {
     const b = e.target.closest("button"); if (!b) return;
-    state.trendSrc = b.dataset.src; srcNotice = "";
-    if (b.dataset.src !== "wid") {
-      const changed = [];
-      if (isInc()) { state.measure = "wealth"; changed.push("switched the measure to Wealth (the Fed's accounts cover wealth only)"); }
-      if (ageOn()) { state.ageLo = AGE_MIN; state.ageHi = AGE_MAX; changed.push("reset the age slider to all ages (the Fed's figures aren't split by age)"); }
-      if (changed.length) srcNotice = ` Choosing the Fed ${changed.join(" and ")}.`;
-    }
-    update();
+    state.trendSrc = b.dataset.src; save(); drawTrend(); drawTx();
   });
   trendTop.addEventListener("change", () => { state.trendTop = trendTop.checked; save(); drawTrend(); drawTx(); });
   // One group's value in year j: the sum of its bins' shares, or (dollar views) the average of its
@@ -1377,7 +1376,11 @@
       ...TREND.map(([name], gi) => ({ name, color: `--cat-${gi + 1}`, vals: js.map(j => fedValue(FED_KEYS[gi], j)) })),
       ...(showExtremes() ? [{ name: "Top 0.1%", color: "--cat-5", vals: js.map(j => fedValue("top01", j)) }] : []),
     ];
-    trendTop.checked = state.trendTop !== false; trendTop.disabled = ageOn();
+    // Options with no data for the current settings aren't shown: the Fed covers wealth for all ages,
+    // and the top 0.1% / 0.01% have no age split.
+    trendTop.checked = state.trendTop !== false;
+    document.getElementById("trend-top-wrap").hidden = ageOn();
+    document.getElementById("trend-src-wrap").hidden = !fedOK();
     const text = css("--text-secondary"), grid = css("--grid");
     const traces = main.map((s, gi) => ({
       type: "scatter", mode: "lines", name: s.name, x: xs, y: s.vals.map(tf), text: s.vals.map(v => v == null ? "" : tfmt(v)),
@@ -1462,11 +1465,10 @@
         : ` (WID${ageOn() ? `; only households headed by someone ${ageLabel()}, from the Survey of Consumer Finances` : ", all ages"}; shaded years are estimated).`) +
       (src === "both" ? " Dotted lines are the Fed's figures for the same groups: it ranks households rather than adults, so the top shares come out lower." : "") +
       (ext.length ? (src === "fed" ? " The dashed top 0.1% is part of the top 1% (the Fed doesn't publish a top 0.01%)." : " The dashed top 0.1% and 0.01% are part of the top 1%.") : "") +
-      (!fedOK() && state.trendSrc !== "wid" ? (isInc() ? " The Fed's accounts cover wealth only, so income is WID's; click Fed or Compare to switch to Wealth." : " The Fed's figures aren't split by age, so with an age range chosen the lines are WID's; click Fed or Compare to go back to all ages.") : "") +
-      (fedOK() ? srcNotice : "") +
+
       (offScale ? " On this scale they run off the top (↑); switch Height scale to Log to see them in full." : "") +
       (extremesWanted() && !extremesFit() ? " The top 0.1% and 0.01% average far more than the other groups, so on this linear scale they're left off; their values are in the summary below, and Log shows their lines." : "") +
-      (ageOn() && state.trendTop !== false ? " The top 0.1% and 0.01% aren't available by age." : "") +
+
       " Click a year to open it in the 3-D map.";
     // Summary: where each line started and ended.
     const firstOf = vals => vals.find(v => v != null);
