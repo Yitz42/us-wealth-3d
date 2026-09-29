@@ -360,6 +360,28 @@ def code_checks(w):
     record("Top 0.01% <= top 0.1% <= top 1% every year", not nest,
            "wealth and income, every year WID publishes" + (f"; first break {nest[0]}" if nest else ""))
 
+    # 10. the Fed's own numbers for the Trends source switch: shares from its levels match its
+    #     published (one-decimal) shares, add up to 100%, and the top 0.1% sits inside the top 1%
+    fd = w["fed_detail"]
+    pub = defaultdict(dict)
+    with open(RAW / "dfa" / "dfa-networth-shares.csv") as f:
+        for r in csv.DictReader(f):
+            pub[r["Date"]][r["Category"]] = float(r["Net worth"])
+    worst_pub, worst_sum, bad_nest, n_yrs = 0.0, 0.0, [], 0
+    for ys_, q in fd["quarter"].items():
+        j = years.index(int(ys_)); n_yrs += 1
+        G = {k: fd["groups"][k]["share"][j] for k in fd["groups"]}
+        P = pub[q]
+        for mine, theirs in ((G["bottom50"], P["Bottom50"]), (G["middle40"], P["Next40"]), (G["next9"], P["Next9"]),
+                             (G["top01"], P["TopPt1"]), (G["top1"], P["TopPt1"] + P["RemainingTop1"])):
+            worst_pub = max(worst_pub, abs(mine - theirs))
+        worst_sum = max(worst_sum, abs(G["bottom50"] + G["middle40"] + G["next9"] + G["top1"] - 100))
+        if not (0 <= G["top01"] <= G["top1"]):
+            bad_nest.append(ys_)
+    record("Fed DFA series match the Fed's published shares", worst_pub <= 0.11 and worst_sum < 0.01 and not bad_nest,
+           f"{n_yrs} year-end quarters; shares from the Fed's dollar levels differ from its one-decimal published shares by at most "
+           f"{worst_pub:.2f} pp (rounding, two groups rounded for the top 1%); groups sum to 100% within {worst_sum:.3f} pp; top 0.1% inside top 1%")
+
     record("Cross-source: WID vs Fed top-1% share", True,
            f"WID is on average {avg:+.1f} pp vs Fed DFA over {diffs[0][0]}-{diffs[-1][0]} (adults vs households; expected)", info=True)
     return checks

@@ -121,6 +121,12 @@
    "info": false
   },
   {
+   "check": "Fed DFA series match the Fed's published shares",
+   "ok": true,
+   "detail": "38 year-end quarters; shares from the Fed's dollar levels differ from its one-decimal published shares by at most 0.07 pp (rounding, two groups rounded for the top 1%); groups sum to 100% within 0.001 pp; top 0.1% inside top 1%",
+   "info": false
+  },
+  {
    "check": "Cross-source: WID vs Fed top-1% share",
    "ok": true,
    "detail": "WID is on average +5.0 pp vs Fed DFA over 1989-2024 (adults vs households; expected)",

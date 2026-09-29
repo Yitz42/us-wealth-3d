@@ -70,6 +70,16 @@ def load_wid(variable="shwealj992"):
     return dict(shares), quality
 
 
+def load_dfa_levels():
+    """{(year, quarter): {category: net worth, $ millions}} from the Fed DFA levels file."""
+    out = defaultdict(dict)
+    with open(RAW / "dfa" / "dfa-networth-levels.csv") as f:
+        for row in csv.DictReader(f):
+            y, q = row["Date"].split(":Q")
+            out[(int(y), int(q))][row["Category"]] = float(row["Net worth"])
+    return dict(out)
+
+
 def load_dfa():
     """{(year, quarter): {group: net-worth share %}} with TopPt1 folded into RemainingTop1."""
     out = defaultdict(dict)
@@ -347,6 +357,33 @@ def main():
                 views["spend_years"][j] = round(per_hh / (mm["pce_total"] / mm["households"]), 3)
             top_detail[m][key] = views
 
+    # --- The Fed's own numbers (DFA), for the Trends source switch -------------------
+    # Year-end (or latest) quarter, households. Shares come from the dollar levels, which are
+    # more precise than the published one-decimal shares; dollar views divide each group's level
+    # by its households (the group's fraction of the same Census household count used elsewhere).
+    dfa_lv = load_dfa_levels()
+    FED_GROUPS = {"bottom50": (["Bottom50"], 0.5), "middle40": (["Next40"], 0.4), "next9": (["Next9"], 0.09),
+                  "top1": (["TopPt1", "RemainingTop1"], 0.01), "top01": (["TopPt1"], 0.001)}
+    fed = {g: {k: [None] * len(years) for k in ("share", "nominal", "real_cpi", "real_pce", "spend_years")} for g in FED_GROUPS}
+    fed_quarter = {}
+    for j, y in enumerate(years):
+        q = year_end(dfa_lv, y)
+        if q is None:
+            continue
+        lv = dfa_lv[q]
+        total = sum(lv[c] for c in ("Bottom50", "Next40", "Next9", "RemainingTop1", "TopPt1"))
+        fed_quarter[str(y)] = f"{q[0]}:Q{q[1]}"
+        mm = macro[y]
+        for g, (cats, frac) in FED_GROUPS.items():
+            level = sum(lv[c] for c in cats) * 1e6
+            per_hh = level / (mm["households"] * frac)
+            fed[g]["share"][j] = round(level / (total * 1e6) * 100, 3)
+            fed[g]["nominal"][j] = round(per_hh)
+            fed[g]["real_cpi"][j] = round(per_hh * cpi_base / mm["cpi_u"])
+            fed[g]["real_pce"][j] = round(per_hh * pce_p_base / mm["pce_price_index"])
+            fed[g]["spend_years"][j] = round(per_hh / (mm["pce_total"] / mm["households"]), 3)
+    fed_detail = {"quarter": fed_quarter, "groups": fed}
+
     income = {"years": inc_years, "tier": inc_tier, "estimated": inc_est, "measures": inc_meas,
               "national_income": {str(y): national_income[y] for y in inc_years}}
 
@@ -400,6 +437,8 @@ def main():
             "spend_years": spend_years,
         },
         "income": income,
+        # The Fed DFA's wealth by group (bottom50, middle40, next9, top1, top01) in every view, 1989 on.
+        "fed_detail": fed_detail,
         # Top 0.1% ("top01") and top 0.01% ("top001") by measure and view; null where WID has no value.
         "top_detail": top_detail,
         # Earlier years' household net worth = households-and-nonprofits total x this part (see module docstring).

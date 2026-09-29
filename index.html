@@ -454,7 +454,13 @@
       <h2 id="trend-title">Share of wealth held by each group</h2>
       <div style="display:flex; flex-wrap:wrap; gap:6px 18px">
         <label class="check" for="trend-top"><input type="checkbox" id="trend-top"> Top 0.1% and 0.01% (dashed)</label>
-        <label class="check" for="trend-dfa" id="trend-dfa-wrap"><input type="checkbox" id="trend-dfa"> Compare with the Fed's figures (households, 1989 on)</label>
+        <span class="check" id="trend-src-wrap">Source
+          <span class="seg" role="group" aria-label="Whose numbers the lines show" id="trend-src-seg">
+            <button data-src="wid" aria-pressed="true" title="WID.world: adults, 1950 on">WID</button>
+            <button data-src="fed" aria-pressed="false" title="Federal Reserve Distributional Financial Accounts: households, 1989 on">Fed</button>
+            <button data-src="both" aria-pressed="false" title="WID solid, the Fed dotted">Compare</button>
+          </span>
+        </span>
       </div>
     </div>
     <p id="trend-sub"></p>
@@ -1283,12 +1289,22 @@
 
   // ---------- Trends: the four groups over time, plus the top 0.1% and 0.01%
   // Follows the measure, view, height scale and age; always covers every year with data.
-  const trendChart = document.getElementById("trend-chart"), trendDfa = document.getElementById("trend-dfa"), trendTop = document.getElementById("trend-top");
+  const trendChart = document.getElementById("trend-chart"), trendTop = document.getElementById("trend-top");
   const TREND = [["Bottom 50%", 0, 50], ["Middle 40% (50th–90th)", 50, 90], ["Next 9% (90th–99th)", 90, 99], ["Top 1%", 99, 100]];
   const EXTREME = [["Top 0.1%", "top01"], ["Top 0.01%", "top001"]];
   const shortName = n => n.replace(/ \(.*\)/, "");
   let trendBound = false;
-  trendDfa.addEventListener("change", () => { state.trendDfa = trendDfa.checked; save(); drawTrend(); });
+  // Source: WID (adults, 1950 on), the Fed's Distributional Financial Accounts (households, 1989 on), or both.
+  // The Fed covers wealth only and has no split by the page's age ranges, so it's WID there.
+  if (state.trendSrc == null) state.trendSrc = state.trendDfa ? "both" : "wid";
+  const FED = W.fed_detail, FED_KEYS = ["bottom50", "middle40", "next9", "top1"];
+  const fedOK = () => !isInc() && !ageOn();
+  const trendSource = () => fedOK() ? state.trendSrc : "wid";
+  const fedValue = (g, j) => FED.quarter[years[j]] ? FED.groups[g][state.view][j] : null;
+  document.getElementById("trend-src-seg").addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b || b.disabled) return;
+    state.trendSrc = b.dataset.src; save(); drawTrend(); drawTx();
+  });
   trendTop.addEventListener("change", () => { state.trendTop = trendTop.checked; save(); drawTrend(); drawTx(); });
   // One group's value in year j: the sum of its bins' shares, or (dollar views) the average of its
   // bins' per-household values, since every bin holds the same number of households.
@@ -1310,11 +1326,13 @@
     return years.map((_, j) => j).filter(j => years[j] >= first && years[j] <= last);
   }
   function trendTitle(what) {
-    const [a, b] = [years[trendYears()[0]], years[trendYears().at(-1)]], inc = isInc();
+    const js0 = trendSource() === "fed" ? trendYears().filter(j => FED.quarter[years[j]]) : trendYears();
+    const [a, b] = [years[js0[0]], years[js0.at(-1)]], inc = isInc();
     const t = state.view === "share" ? `Share of ${inc ? "income" : "wealth"} held by each ${what}`
       : state.view === "spend_years" ? `${inc ? "Income" : "Wealth"} in years of average household spending, by ${what}`
       : `Average ${inc ? "pre-tax income" : "net worth"} per household, by ${what} (${VIEWS[state.view].label})`;
-    return `${t}, ${a}–${b}` + (ageOn() ? ` · head ${ageLabel()}` : "");
+    const srcTag = { wid: "", fed: " · the Fed's figures", both: " · WID and the Fed" }[trendSource()];
+    return `${t}, ${a}–${b}` + srcTag + (ageOn() ? ` · head ${ageLabel()}` : "");
   }
   // Log view uses the same signed log as the 3-D chart, so net-debt years stay on the chart.
   function valueAxis(allVals, text, grid) {
@@ -1330,9 +1348,26 @@
 
   function drawTrend() {
     const view = VIEWS[state.view], inc = isInc(), log = state.scale === "log";
-    const js = trendYears(), xs = js.map(j => years[j]);
-    const main = TREND.map(([name, lo, hi]) => ({ name, vals: js.map(j => groupValue(lo, hi, j)) }));
-    const ext = showExtremes() ? EXTREME.map(([name, key]) => ({ name, vals: js.map(j => extremeValue(key, j)) })) : [];
+    const src = trendSource();
+    document.querySelectorAll("#trend-src-seg button").forEach(b => {
+      b.setAttribute("aria-pressed", b.dataset.src === src);
+      b.disabled = b.dataset.src !== "wid" && !fedOK();
+    });
+    let js = trendYears();
+    if (src === "fed") js = js.filter(j => FED.quarter[years[j]]);
+    const xs = js.map(j => years[j]);
+    // Solid lines: WID, or the Fed when it's the only source. The Fed publishes a top 0.1% but no top 0.01%.
+    const main = src === "fed"
+      ? TREND.map(([name], gi) => ({ name, vals: js.map(j => fedValue(FED_KEYS[gi], j)) }))
+      : TREND.map(([name, lo, hi]) => ({ name, vals: js.map(j => groupValue(lo, hi, j)) }));
+    const ext = !showExtremes() ? [] : src === "fed"
+      ? [{ name: "Top 0.1%", vals: js.map(j => fedValue("top01", j)) }]
+      : EXTREME.map(([name, key]) => ({ name, vals: js.map(j => extremeValue(key, j)) }));
+    // Compare: the Fed's figures dotted over WID's, in the same colours.
+    const cmp = src !== "both" ? [] : [
+      ...TREND.map(([name], gi) => ({ name, color: `--cat-${gi + 1}`, vals: js.map(j => fedValue(FED_KEYS[gi], j)) })),
+      ...(showExtremes() ? [{ name: "Top 0.1%", color: "--cat-5", vals: js.map(j => fedValue("top01", j)) }] : []),
+    ];
     trendTop.checked = state.trendTop !== false; trendTop.disabled = ageOn();
     const text = css("--text-secondary"), grid = css("--grid");
     const traces = main.map((s, gi) => ({
@@ -1344,20 +1379,18 @@
       type: "scatter", mode: "lines", name: `${s.name} (within the top 1%)`, x: xs, y: s.vals.map(tf), text: s.vals.map(v => v == null ? "" : tfmt(v)),
       line: { color: css(`--cat-${ei + 5}`), width: 1.5, dash: "dash" }, hovertemplate: `${s.name}: %{text}<extra></extra>`, connectgaps: false,
     }));
-    const showDfa = !inc && !ageOn() && state.view === "share" && state.trendDfa;
-    trendDfa.checked = !!state.trendDfa;
-    document.getElementById("trend-dfa-wrap").hidden = inc || state.view !== "share";
-    if (showDfa) {
-      const dys = xs.filter(y => DFA[y]);
-      DFA_KEYS.forEach((k, gi) => traces.push({
-        type: "scatter", mode: "lines", name: gi === 0 ? "Dotted: Fed DFA (households)" : `${TREND[gi][0]} · Fed DFA`, x: dys, y: dys.map(y => tf(DFA[y][k])),
-        showlegend: gi === 0, legendgroup: "dfa", line: { color: css(`--cat-${gi + 1}`), width: 1.5, dash: "dot" },
-        text: dys.map(y => `${DFA[y][k].toFixed(1)}%`), hovertemplate: `${TREND[gi][0]} (Fed DFA, households): %{text}<extra></extra>`,
-      }));
-    }
+    cmp.forEach((c, ci) => {
+      const idx = c.vals.map((v, i) => v == null ? -1 : i).filter(i => i >= 0);
+      traces.push({
+        type: "scatter", mode: "lines", name: ci === 0 ? "Dotted: Fed DFA (households)" : `${c.name} · Fed`, x: idx.map(i => xs[i]), y: idx.map(i => tf(c.vals[i])),
+        showlegend: ci === 0, legendgroup: "fed", line: { color: css(c.color), width: 1.5, dash: "dot" },
+        text: idx.map(i => tfmt(c.vals[i])), hovertemplate: `${c.name} (Fed, households): %{text}<extra></extra>`,
+      });
+    });
     // The four groups set the scale. On a linear dollar scale the top 0.1% and 0.01% are many times
     // larger, so they run off the top and their end label says so; Log shows them in full.
-    const mainVals = main.flatMap(s => s.vals).filter(v => v != null), extVals = ext.flatMap(s => s.vals).filter(v => v != null);
+    const cmpMain = cmp.slice(0, 4).flatMap(c => c.vals), cmpExt = cmp.slice(4).flatMap(c => c.vals);
+    const mainVals = [...main.flatMap(s => s.vals), ...cmpMain].filter(v => v != null), extVals = [...ext.flatMap(s => s.vals), ...cmpExt].filter(v => v != null);
     const yaxis = valueAxis([...mainVals, ...(log || state.view === "share" ? extVals : [])], text, grid);
     let cap = Infinity;
     if (!log) {
@@ -1366,7 +1399,7 @@
       yaxis.range = [Math.min(0, ...mainVals) * 1.1, cap];
     }
     // Shade estimated years; mark the 3-D map's slice year.
-    const tiers = xs.map(y => tierOf(y));
+    const tiers = xs.map(y => src === "fed" ? "measured" : tierOf(y));
     const shapes = [], annotations = [], narrow = trendChart.clientWidth < 600;  // phones: legend only, no end labels
     const bands = { wid_imputed: "estimated from tax trends", wid_nowcast: "preliminary", extended_dfa: "extended with Fed data" };
     let k = 0;
@@ -1413,8 +1446,11 @@
     const offScale = ext.some(s => s.vals.some(v => v != null && v > cap));
     document.getElementById("trend-sub").textContent =
       (state.view === "share" ? `Each line is one group's share of all US ${noun}` : `Each line is one group's average per household. ${VIEWS[state.view].note.replace(/\.$/, "")}`) +
-      ` (WID${ageOn() ? `; only households headed by someone ${ageLabel()}, from the Survey of Consumer Finances` : ", all ages"}; shaded years are estimated).` +
-      (ext.length ? " The dashed top 0.1% and 0.01% are part of the top 1%." : "") +
+      (src === "fed" ? " (the Fed's Distributional Financial Accounts: households, year-end, 1989 on)."
+        : ` (WID${ageOn() ? `; only households headed by someone ${ageLabel()}, from the Survey of Consumer Finances` : ", all ages"}; shaded years are estimated).`) +
+      (src === "both" ? " Dotted lines are the Fed's figures for the same groups: it ranks households rather than adults, so the top shares come out lower." : "") +
+      (ext.length ? (src === "fed" ? " The dashed top 0.1% is part of the top 1% (the Fed doesn't publish a top 0.01%)." : " The dashed top 0.1% and 0.01% are part of the top 1%.") : "") +
+      (!fedOK() && state.trendSrc !== "wid" ? (isInc() ? " The Fed's accounts cover wealth only, so income is WID's." : " The Fed's figures aren't split by age, so with an age range chosen the lines are WID's.") : "") +
       (offScale ? " On this scale they run off the top (↑); switch Height scale to Log to see them in full." : "") +
       (extremesWanted() && !extremesFit() ? " The top 0.1% and 0.01% average far more than the other groups, so on this linear scale they're left off; their values are in the summary below, and Log shows their lines." : "") +
       (ageOn() && state.trendTop !== false ? " The top 0.1% and 0.01% aren't available by age." : "") +
@@ -1429,7 +1465,13 @@
       const mid = main[1].vals, peak = mid.reduce((b, v, i) => v != null && (mid[b] == null || v > mid[b]) ? i : b, 0);
       note += ` The middle 40% peaked at ${tfmt(mid[peak])} in ${xs[peak]}` + (bands[tiers[peak]] ? ` (an estimated year; ${bands[tiers[peak]]})` : "") + ".";
     }
-    document.getElementById("trend-sum").textContent = sum.join(" · ") + note;
+    // Compare: the same summary for the Fed's lines.
+    if (cmp.length) {
+      const fsum = cmp.map(c => { const f = firstOf(c.vals), l = lastOf(c.vals); return f == null || !l ? "" : `${shortName(c.name)}: ${tfmt(f)} → ${tfmt(l[1])}`; }).filter(Boolean);
+      const fy = xs.filter((_, i) => cmp[0].vals[i] != null);
+      note += ` The Fed (${fy[0]} → ${fy.at(-1)}): ${fsum.join(" · ")}.`;
+    }
+    document.getElementById("trend-sum").textContent = (src === "fed" ? "The Fed: " : "") + sum.join(" · ") + note;
   }
 
   // ---------- Trends cross-section: the same breakdowns, by group instead of by percentile
@@ -1469,27 +1511,50 @@
     const thead = document.querySelector("#tx-table thead"), tbody = document.querySelector("#tx-table tbody");
     const note = document.getElementById("tx-note"), key = document.getElementById("tx-key");
     if (isValue) {
-      // The groups' own values: the same numbers as the lines above.
+      // The groups' own values: the same numbers as the lines above, from the chosen source.
+      const src = trendSource(), useFed = src === "fed";
+      const gv = (gi, jj) => useFed ? fedValue(FED_KEYS[gi], jj) : groupValue(TX_GROUPS[gi][1], TX_GROUPS[gi][2], jj);
+      const gs = (gi, jj) => useFed ? (FED.quarter[years[jj]] ? FED.groups[FED_KEYS[gi]].share[jj] : null) : groupValueShare(TX_GROUPS[gi][1], TX_GROUPS[gi][2], jj);
+      if (useFed) state.txYear = Math.max(state.txYear, +Object.keys(FED.quarter)[0]);
       const j = years.indexOf(state.txYear);
-      const rows = [...TX_GROUPS.map(([name, lo, hi], gi) => [name, groupValue(lo, hi, j), `--cat-${gi + 1}`]),
-                    ...(extremesWanted() ? EXTREME.map(([name, k2], ei) => [`${name}*`, extremeValue(k2, j), `--cat-${ei + 5}`]) : [])];
+      // rows: [label, value, colour, share of all, Fed value (Compare only)]
+      const fedTop = j2 => FED.quarter[years[j2]] ? FED.groups.top01 : null;
+      const rows = [...TX_GROUPS.map(([name], gi) => [name, gv(gi, j), `--cat-${gi + 1}`, gs(gi, j), fedValue(FED_KEYS[gi], j)]),
+                    ...(!extremesWanted() ? [] : useFed
+                      ? [["Top 0.1%*", fedValue("top01", j), "--cat-5", fedTop(j) && fedTop(j).share[j], null]]
+                      : EXTREME.map(([name, k2], ei) => [`${name}*`, extremeValue(k2, j), `--cat-${ei + 5}`, extremeShare(k2, j), k2 === "top01" ? fedValue("top01", j) : null]))];
       let x, y, colors;
       if (byYear) { x = rows.map(r => r[0]); y = rows.map(r => r[1]); colors = rows.map(r => css(r[2])); }
-      else { const [, lo, hi] = TX_GROUPS[state.txGroup]; x = yrs.map(String); y = js.map(jj => groupValue(lo, hi, jj)); colors = x.map(() => css(`--cat-${state.txGroup + 1}`)); }
+      else {
+        const jj2 = useFed ? js.filter(jj => FED.quarter[years[jj]]) : js;
+        x = jj2.map(jj => String(years[jj])); y = jj2.map(jj => gv(state.txGroup, jj)); colors = x.map(() => css(`--cat-${state.txGroup + 1}`));
+      }
       const yaxis = valueAxis(y.filter(v => v != null), text, grid);
       if (state.scale !== "log" && byYear && state.view !== "share") {
         const mainMax = Math.max(...y.slice(0, 4).filter(v => v != null));
         yaxis.range = [Math.min(0, ...y.filter(v => v != null)) * 1.1, mainMax * 1.15];  // the tiny top groups would dwarf the rest
       }
-      Plotly.react(txChart, [{ type: "bar", x, y: y.map(tf), marker: { color: colors }, text: y.map(v => v == null ? "" : view.fmt(v)),
-        textposition: "none", hovertemplate: "%{x}: %{text}<extra></extra>" }], { ...layoutBase, yaxis }, { responsive: true, displayModeBar: false });
-      document.getElementById("tx-chart-title").textContent = byYear ? `${trendTitle("group").replace(/, \d{4}–\d{4}/, "")}, ${state.txYear}` : `${TX_GROUPS[state.txGroup][0]}: ${trendTitle("group").split(",")[0].toLowerCase()}, ${yrs[0]}–${yrs.at(-1)}`;
+      const bars = [{ type: "bar", name: "WID", x, y: y.map(tf), marker: { color: colors }, text: y.map(v => v == null ? "" : tfmt(v)),
+        textposition: "none", hovertemplate: `%{x}${src === "both" ? " (WID)" : ""}: %{text}<extra></extra>` }];
+      // Compare: the Fed's bar beside each group, striped so the two sources differ by more than colour.
+      if (src === "both") {
+        const fy = byYear ? rows.map(r => r[4]) : js.map(jj => fedValue(FED_KEYS[state.txGroup], jj));
+        bars.push({ type: "bar", name: "The Fed (striped)", x, y: fy.map(tf), text: fy.map(v => v == null ? "" : tfmt(v)), textposition: "none",
+          marker: { color: colors, pattern: { shape: "/", fgcolor: css("--surface-1"), solidity: 0.35 } },
+          hovertemplate: "%{x} (the Fed): %{text}<extra></extra>" });
+      }
+      Plotly.react(txChart, bars, { ...layoutBase, yaxis, barmode: src === "both" ? "group" : "stack", bargap: src === "both" ? 0.2 : 0.25,
+        showlegend: src === "both", legend: { orientation: "h", x: 0, y: 1.08 } }, { responsive: true, displayModeBar: false });
+      const base = trendTitle("group").replace(/, \d{4}–\d{4}/, "");
+      document.getElementById("tx-chart-title").textContent = byYear ? `${base}, ${state.txYear}` : `${TX_GROUPS[state.txGroup][0]}: ${base.split(",")[0].toLowerCase()}, ${x[0]}–${x.at(-1)}`;
       const lastTop = years[W.top_detail.wealth.top01.share.reduce((b, v, i) => v != null ? i : b, 0)];
-      key.innerHTML = extremesWanted() && byYear ? `<span class="footnote">* The top 0.1% and 0.01% are part of the top 1%, and WID's figures for them run to ${lastTop}. On a linear dollar scale they can run off the top; the table has their values.</span>` : "";
-      thead.innerHTML = `<tr><th>Group</th><th class="num">${view.label}</th>${state.view === "share" ? "" : `<th class="num">Share of all ${isInc() ? "income" : "wealth"}</th>`}</tr>`;
-      const shareOf = (r, gi) => gi < 4 ? groupValueShare(TX_GROUPS[gi][1], TX_GROUPS[gi][2], j) : extremeShare(EXTREME[gi - 4][1], j);
-      tbody.innerHTML = byYear ? rows.map((r, gi) => `<tr><td>${r[0]}</td><td class="num">${tfmt(r[1])}</td>${state.view === "share" ? "" : `<td class="num">${(v => v == null ? "—" : `${v.toFixed(1)}%`)(shareOf(r, gi))}</td>`}</tr>`).join("") : "";
-      note.textContent = `${TIERS[tierOf(state.txYear)].label}.`;
+      key.innerHTML = extremesWanted() && byYear ? `<span class="footnote">* ${useFed ? "The top 0.1% is part of the top 1% (the Fed doesn't publish a top 0.01%)." : `The top 0.1% and 0.01% are part of the top 1%, and WID's figures for them run to ${lastTop}.`} On a linear dollar scale they can run off the top; the table has their values.</span>` : "";
+      const both = src === "both";
+      thead.innerHTML = `<tr><th>Group</th><th class="num">${useFed ? "The Fed · " : both ? "WID · " : ""}${view.label}</th>${state.view === "share" ? "" : `<th class="num">Share of all ${isInc() ? "income" : "wealth"}</th>`}${both ? `<th class="num">The Fed · ${view.label}</th>` : ""}</tr>`;
+      const pct = v => v == null ? "—" : `${v.toFixed(1)}%`;
+      tbody.innerHTML = byYear ? rows.map(r => `<tr><td>${r[0]}</td><td class="num">${tfmt(r[1])}</td>${state.view === "share" ? "" : `<td class="num">${pct(r[3])}</td>`}${both ? `<td class="num">${tfmt(r[4])}</td>` : ""}</tr>`).join("") : "";
+      note.textContent = useFed ? `The Fed's Distributional Financial Accounts, ${FED.quarter[state.txYear] || "no data that year"} (households).`
+        : `${TIERS[tierOf(state.txYear)].label}.` + (both ? " The Fed's column ranks households, year-end quarter." : "");
       return;
     }
     // Survey breakdowns: each group is the range of 1% bins it covers, in the survey's own ranking.
