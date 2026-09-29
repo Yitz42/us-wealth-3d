@@ -712,6 +712,8 @@ def main():
     out = {"code_checks": code_checks(w), "jev": jev_checks(docs, w)}
     (ROOT / "data" / "verification.json").write_text(json.dumps(out, indent=1))
     (ROOT / "data" / "verification.js").write_text("window.VERIFICATION = " + json.dumps(out) + ";\n")
+    import stamp_versions  # data files just changed: point index.html at the new versions
+    stamp_versions.main()
 
     for c in out["code_checks"]:
         print(f"[{'info' if c['info'] else 'ok' if c['ok'] else 'FAIL'}] {c['check']}: {c['detail']}")

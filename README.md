@@ -64,7 +64,7 @@ python3 scripts/fetch_data.py    # WID US file, Fed DFA, FRED series, SCF, Smith
 # from https://www.cbo.gov/publication/62761 into data/raw/cbo/ by hand, before build_data.py.
 python3 scripts/build_data.py    # -> data/wealth.json, data/wealth.js (and data/gender_wid.json, not shown on the page)
 python3 scripts/build_scf.py     # -> data/scf.json, data/scf.js
-python3 scripts/verify.py        # -> data/verification.json, data/verification.js
+python3 scripts/verify.py        # -> data/verification.json, data/verification.js, then stamps the data links in index.html (stamp_versions.py)
 ```
 
 Python 3.9+ standard library only. `fetch_data.py` pulls just the US files out of WID's 880 MB bulk zip using HTTP range requests.
