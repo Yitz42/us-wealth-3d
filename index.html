@@ -1301,9 +1301,19 @@
   const fedOK = () => !isInc() && !ageOn();
   const trendSource = () => fedOK() ? state.trendSrc : "wid";
   const fedValue = (g, j) => FED.quarter[years[j]] ? FED.groups[g][state.view][j] : null;
+  // Choosing the Fed (or Compare) always works: it moves the page to what the Fed covers (wealth,
+  // all ages) and says so under the title, instead of leaving a button that does nothing.
+  let srcNotice = "";
   document.getElementById("trend-src-seg").addEventListener("click", e => {
-    const b = e.target.closest("button"); if (!b || b.disabled) return;
-    state.trendSrc = b.dataset.src; save(); drawTrend(); drawTx();
+    const b = e.target.closest("button"); if (!b) return;
+    state.trendSrc = b.dataset.src; srcNotice = "";
+    if (b.dataset.src !== "wid") {
+      const changed = [];
+      if (isInc()) { state.measure = "wealth"; changed.push("switched the measure to Wealth (the Fed's accounts cover wealth only)"); }
+      if (ageOn()) { state.ageLo = AGE_MIN; state.ageHi = AGE_MAX; changed.push("reset the age slider to all ages (the Fed's figures aren't split by age)"); }
+      if (changed.length) srcNotice = ` Choosing the Fed ${changed.join(" and ")}.`;
+    }
+    update();
   });
   trendTop.addEventListener("change", () => { state.trendTop = trendTop.checked; save(); drawTrend(); drawTx(); });
   // One group's value in year j: the sum of its bins' shares, or (dollar views) the average of its
@@ -1351,7 +1361,6 @@
     const src = trendSource();
     document.querySelectorAll("#trend-src-seg button").forEach(b => {
       b.setAttribute("aria-pressed", b.dataset.src === src);
-      b.disabled = b.dataset.src !== "wid" && !fedOK();
     });
     let js = trendYears();
     if (src === "fed") js = js.filter(j => FED.quarter[years[j]]);
@@ -1423,10 +1432,13 @@
     for (let i = ends.length - 2; i >= 0; i--) if (ends[i + 1].off && ends[i].off) ends[i].y = ends[i + 1].y - gap;
     if (!narrow) ends.forEach(e => annotations.push({ x: e.x, y: e.y, xref: "x", yref: "y", xanchor: "left", xshift: 6, showarrow: false,
       text: `${e.name} ${tfmt(e.v)}${e.off ? " ↑" : ""}`, font: { size: 11, color: text } }));
+    // On phones the legend stacks one entry per line, so the chart grows to fit it below the plot.
+    const nLegend = traces.filter(t => t.showlegend !== false).length, legendH = narrow ? 24 * nLegend + 40 : 64;
+    trendChart.style.height = narrow ? `${300 + legendH}px` : "";
     Plotly.react(trendChart, traces, {
       paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
       font: { family: "Inter, system-ui, sans-serif", size: 12, color: text },
-      margin: { l: 56, r: narrow ? 12 : 150, t: 18, b: narrow ? 150 : 64 }, hovermode: "x unified",
+      margin: { l: 56, r: narrow ? 12 : 150, t: 18, b: legendH }, hovermode: "x unified",
       hoverlabel: { bgcolor: css("--surface-1"), bordercolor: css("--border"), font: { color: css("--text-primary") } },
       legend: { orientation: "h", x: 0, y: 0, yanchor: "bottom", yref: "container", font: { size: 12 } },
       xaxis: { color: text, gridcolor: grid, showgrid: false, zeroline: false, range: [xs[0] - 1.5, xs.at(-1) + 0.5] },
@@ -1450,7 +1462,8 @@
         : ` (WID${ageOn() ? `; only households headed by someone ${ageLabel()}, from the Survey of Consumer Finances` : ", all ages"}; shaded years are estimated).`) +
       (src === "both" ? " Dotted lines are the Fed's figures for the same groups: it ranks households rather than adults, so the top shares come out lower." : "") +
       (ext.length ? (src === "fed" ? " The dashed top 0.1% is part of the top 1% (the Fed doesn't publish a top 0.01%)." : " The dashed top 0.1% and 0.01% are part of the top 1%.") : "") +
-      (!fedOK() && state.trendSrc !== "wid" ? (isInc() ? " The Fed's accounts cover wealth only, so income is WID's." : " The Fed's figures aren't split by age, so with an age range chosen the lines are WID's.") : "") +
+      (!fedOK() && state.trendSrc !== "wid" ? (isInc() ? " The Fed's accounts cover wealth only, so income is WID's; click Fed or Compare to switch to Wealth." : " The Fed's figures aren't split by age, so with an age range chosen the lines are WID's; click Fed or Compare to go back to all ages.") : "") +
+      (fedOK() ? srcNotice : "") +
       (offScale ? " On this scale they run off the top (↑); switch Height scale to Log to see them in full." : "") +
       (extremesWanted() && !extremesFit() ? " The top 0.1% and 0.01% average far more than the other groups, so on this linear scale they're left off; their values are in the summary below, and Log shows their lines." : "") +
       (ageOn() && state.trendTop !== false ? " The top 0.1% and 0.01% aren't available by age." : "") +
