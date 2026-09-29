@@ -37,6 +37,8 @@ the four groups instead of single percentiles, by year or for one group over tim
 follow the Source switch (in Compare, the Fed's bars are striped beside WID's).
 **Checks** (`#checks`) holds the verification results.
 
+`favicon.svg` is the tab icon: the bottom 50%, middle 40% and next 9% stay low while the top 1% towers over them.
+
 ## Run
 
 ```bash

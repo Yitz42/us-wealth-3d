@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Wealth per household: bottom 50%, middle 40% and next 9% stay low; the top 1% towers over them. -->
+  <rect width="32" height="32" rx="7" fill="#0d366b"/>
+  <rect x="5" y="24" width="4.5" height="3" rx="1" fill="#86b6ef"/>
+  <rect x="11" y="21" width="4.5" height="6" rx="1" fill="#5598e7"/>
+  <rect x="17" y="18" width="4.5" height="9" rx="1" fill="#9ec5f4"/>
+  <rect x="23" y="4" width="4.5" height="23" rx="1" fill="#eb6834"/>
+</svg>
