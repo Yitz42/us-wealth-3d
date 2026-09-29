@@ -334,6 +334,32 @@ def code_checks(w):
     record("Income: dollar values = share x national income / households", worst_d <= 1,
            f"national income matches FRED A032RC1A027NBEA; worst error is {worst_d:.2f}x the share-rounding tolerance")
 
+    # 9. top 0.1% and top 0.01% (Trends lines): copied exactly, and nested inside the top 1%
+    td = w["top_detail"]
+    raw_top = defaultdict(dict)
+    with open(RAW / "WID_data_US.csv") as f:
+        for r in csv.DictReader(f, delimiter=";"):
+            if r["variable"] in ("shwealj992", "sptincj992") and r["percentile"] in ("p99.9p100", "p99.99p100"):
+                raw_top[(r["variable"], r["percentile"])][int(r["year"])] = float(r["value"])
+    bad, nest, n_cells = [], [], 0
+    for m, var, top1 in (("wealth", "shwealj992", w["measures"]["share"][99]), ("income", "sptincj992", w["income"]["measures"]["share"][99])):
+        for key, pc in (("top01", "p99.9p100"), ("top001", "p99.99p100")):
+            for j, y in enumerate(years):
+                v = td[m][key]["share"][j]
+                if v is None:
+                    continue
+                n_cells += 1
+                if abs(v - round(raw_top[(var, pc)][y] * 100, 4)) > 1e-9:
+                    bad.append((m, key, y))
+        for j, y in enumerate(years):
+            a, b, c = td[m]["top001"]["share"][j], td[m]["top01"]["share"][j], top1[j]
+            if None not in (a, b, c) and not (0 <= a <= b <= c):
+                nest.append((m, y))
+    record("Top 0.1% and 0.01% copied exactly from WID", not bad,
+           f"{n_cells - len(bad)}/{n_cells} values match WID (p99.9p100, p99.99p100)" + (f"; first mismatch {bad[0]}" if bad else ""))
+    record("Top 0.01% <= top 0.1% <= top 1% every year", not nest,
+           "wealth and income, every year WID publishes" + (f"; first break {nest[0]}" if nest else ""))
+
     record("Cross-source: WID vs Fed top-1% share", True,
            f"WID is on average {avg:+.1f} pp vs Fed DFA over {diffs[0][0]}-{diffs[-1][0]} (adults vs households; expected)", info=True)
     return checks

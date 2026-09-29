@@ -109,6 +109,18 @@
    "info": false
   },
   {
+   "check": "Top 0.1% and 0.01% copied exactly from WID",
+   "ok": true,
+   "detail": "300/300 values match WID (p99.9p100, p99.99p100)",
+   "info": false
+  },
+  {
+   "check": "Top 0.01% <= top 0.1% <= top 1% every year",
+   "ok": true,
+   "detail": "wealth and income, every year WID publishes",
+   "info": false
+  },
+  {
    "check": "Cross-source: WID vs Fed top-1% share",
    "ok": true,
    "detail": "WID is on average +5.0 pp vs Fed DFA over 1989-2024 (adults vs households; expected)",

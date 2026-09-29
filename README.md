@@ -4,7 +4,7 @@
 (1950–2024, WID `sptincj992`) for each 1-percentile group, as 3-D pillars or a surface
 (year × percentile × value), with five views: share of wealth, nominal dollars per
 household, real dollars (CPI-U), real dollars (PCE price index), and years of consumer spending.
-"Years shown" limits the year range. The cross-section panel sits beside the 3-D chart on wide screens
+Two-handle sliders for "Years shown" and "Percentiles shown" trim the 3-D chart. The cross-section panel sits beside the 3-D chart on wide screens
 (below it, with a jump link, on narrow ones); clicking any pillar slices there. It cuts the chart by year (all percentiles in one year) or by percentile (one group across
 all years), shows that slice as a flat bar chart with a summary table, and can hide everything past it.
 Under the slicer, "Show" switches the flat chart between Wealth and three breakdowns from the Fed's
@@ -13,17 +13,24 @@ with married or partnered people in lighter shades; each couple counts as one wo
 survey records only one partner's sex),
 Race, Location of money (what assets are held in), Work sector (occupation or work status), and Age of the
 household head. With the Income measure selected, these rank households by income instead of net worth.
-"Age of household head" is a two-handle slider (any range of ages, 17–95, with buttons for the Fed DFA's
-groups: under 40, 40–54, 55–69, 70 and over). It trims the 3-D chart, the slice and its table to the part of
+"Age of household head" is a two-handle slider (any range of ages, 17–95). It trims the 3-D chart, the slice and its table to the part of
 each 1% group held by households whose head is in that age range, 1989 onward. The Show breakdowns follow the
 range when it starts and ends on the DFA groups' edges (40, 55, 70) and cover all ages otherwise. Percentiles
 still rank all ages. Clicking a bar opens a panel for that year and
 percentile, with options to average over neighbouring years and percentiles. Sources, the method notes and
 "Where sources disagree" are on this tab too.
 
-**Trends** (`#trends`) is a line chart of each group's share over time (bottom 50%, middle 40%, next 9%,
-top 1%), with estimated years shaded and, optionally, the Fed DFA's household figures dotted alongside;
-clicking a year opens it in the 3-D map. **Checks** (`#checks`) holds the verification results.
+Measure, View, Height scale and the age slider sit above both chart tabs and apply to both; Chart type and
+the year/percentile sliders apply to the 3-D map only.
+
+**Trends** (`#trends`) is a line chart of each group over time (bottom 50%, middle 40%, next 9%, top 1%), in
+any view, with estimated years shaded. Dashed lines add WID's top 0.1% and top 0.01% (part of the top 1%;
+through 2024): on the Share view and the Log scale they're drawn, and on linear dollar views, where they would
+dwarf the chart, their values go in the summary instead. On the Share view the Fed DFA's household figures can
+be dotted alongside. Clicking a year opens it in the 3-D map. Below the chart, a cross-section gives the same
+breakdowns as the 3-D map's (Gender, Race, Location of money, Work sector, Age, or the groups' own values) for
+the four groups instead of single percentiles, by year or for one group over time, with a table.
+**Checks** (`#checks`) holds the verification results.
 
 ## Run
 

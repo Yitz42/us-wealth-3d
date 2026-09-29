@@ -319,6 +319,34 @@ def main():
             inc_meas["real_pce"][i][j] = round(per_hh * pce_p_base / m["pce_price_index"])
             inc_meas["spend_years"][i][j] = round(per_hh / (m["pce_total"] / m["households"]), 3)
             inc_est[i][j] = int(i in g)
+    # --- Top 0.1% and top 0.01% (WID's own g-percentiles), for the Trends lines --------
+    # Shares as published; dollar views divide by the households in the group (0.1% or 0.01% of all).
+    TOP = {"top01": ("p99.9p100", 0.001), "top001": ("p99.99p100", 0.0001)}
+    top_raw = {m: defaultdict(dict) for m in ("wealth", "income")}
+    with open(RAW / "WID_data_US.csv") as f:
+        for row in csv.DictReader(f, delimiter=";"):
+            m = {"shwealj992": "wealth", "sptincj992": "income"}.get(row["variable"])
+            if m and row["percentile"] in ("p99.9p100", "p99.99p100") and int(row["year"]) >= START_YEAR:
+                top_raw[m][row["percentile"]][int(row["year"])] = float(row["value"])
+    top_detail = {}
+    for m in ("wealth", "income"):
+        top_detail[m] = {}
+        for key, (pc, frac) in TOP.items():
+            views = {k: [None] * len(years) for k in ("share", "nominal", "real_cpi", "real_pce", "spend_years")}
+            for j, y in enumerate(years):
+                s_ = top_raw[m][pc].get(y)
+                total = macro[y]["net_worth_total"] if m == "wealth" else national_income.get(y)
+                if s_ is None or total is None:
+                    continue
+                mm = macro[y]
+                per_hh = s_ * total / (mm["households"] * frac)
+                views["share"][j] = round(s_ * 100, 4)
+                views["nominal"][j] = round(per_hh)
+                views["real_cpi"][j] = round(per_hh * cpi_base / mm["cpi_u"])
+                views["real_pce"][j] = round(per_hh * pce_p_base / mm["pce_price_index"])
+                views["spend_years"][j] = round(per_hh / (mm["pce_total"] / mm["households"]), 3)
+            top_detail[m][key] = views
+
     income = {"years": inc_years, "tier": inc_tier, "estimated": inc_est, "measures": inc_meas,
               "national_income": {str(y): national_income[y] for y in inc_years}}
 
@@ -372,6 +400,8 @@ def main():
             "spend_years": spend_years,
         },
         "income": income,
+        # Top 0.1% ("top01") and top 0.01% ("top001") by measure and view; null where WID has no value.
+        "top_detail": top_detail,
         # Earlier years' household net worth = households-and-nonprofits total x this part (see module docstring).
         "households_only_net_worth": {"from": f"{hh_first[0]}:Q{hh_first[1]}", "households_part": round(hh_part, 4)},
         # The Fed DFA's own shares for the same four groups (households, year-end quarter), 1989 on,

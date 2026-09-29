@@ -91,8 +91,6 @@
   .dual input::-webkit-slider-thumb { -webkit-appearance: none; pointer-events: auto; width: 16px; height: 16px; margin-top: 3px; border-radius: 50%; background: var(--accent); border: 2px solid var(--surface-1); box-shadow: 0 0 0 1px var(--accent); cursor: pointer; }
   .dual input::-moz-range-thumb { pointer-events: auto; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); border: 2px solid var(--surface-1); box-shadow: 0 0 0 1px var(--accent); cursor: pointer; }
   .dual input:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent); }
-  .seg-sm { margin-top: 6px; }
-  .seg-sm button { font-size: 12px; padding: 3px 8px; }
   .range { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--text-secondary); }
   .range input[type=number] { width: 64px; font: inherit; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-1); color: var(--text-primary); }
 
@@ -131,6 +129,18 @@
     .viz-grid .slice { margin-top: 0; padding-top: 0; border-top: 0; border-left: 1px solid var(--border); padding-left: 20px; }
     .jump { display: none; }
   }
+
+  /* shared controls above the 3-D map and Trends tabs */
+  .controls-card { margin-top: 20px; padding: 16px; display: grid; gap: 14px; }
+  body[data-tab="trends"] .only-3d, body[data-tab="checks"] #controls-card { display: none; }
+  .dual-wide { width: min(260px, 55vw); }
+  .dual { max-width: 55vw; }
+  .control { max-width: 100%; }
+  .controls .seg { max-width: 100%; }
+  #tx-chart { width: 100%; height: 340px; margin-top: 8px; }
+  .tx .slice-head { margin-top: 10px; }
+  .tx-table { margin-top: 8px; overflow-x: auto; }
+  .tx-table th:first-child, .tx-table td:first-child { white-space: nowrap; }
 
   .tiers { display: flex; height: 10px; border-radius: 5px; overflow: hidden; gap: 2px; margin-top: 12px; }
   .tiers div { height: 100%; }
@@ -192,7 +202,7 @@
   }
 </style>
 </head>
-<body>
+<body data-tab="explore">
 <main>
   <header>
     <h1 id="page-title">Who owns America's wealth, 1950–2026</h1>
@@ -205,8 +215,7 @@
     <button role="tab" id="tab-checks" aria-controls="panel-checks" aria-selected="false" tabindex="-1">Checks<span class="count" id="checks-count"></span></button>
   </nav>
 
-  <div id="panel-explore" role="tabpanel" aria-labelledby="tab-explore">
-  <div class="card viz">
+  <div class="card controls-card" id="controls-card">
     <div class="controls">
       <div class="control">
         <span class="label" id="measure-label">Measure</span>
@@ -216,22 +225,10 @@
         </div>
       </div>
       <div class="control">
-        <span class="label" id="age-label">Age of household head</span>
-        <div class="age-row">
-          <div class="dual" id="age-dual">
-            <div class="dual-fill" id="age-fill"></div>
-            <input type="range" id="age-lo" step="1" aria-label="Youngest age of household head">
-            <input type="range" id="age-hi" step="1" aria-label="Oldest age of household head">
-          </div>
-          <output id="age-out" for="age-lo age-hi"></output>
-        </div>
-        <div class="seg seg-sm" role="group" aria-label="Age presets (the Fed's age groups)" id="age-seg"></div>
-      </div>
-      <div class="control">
         <span class="label" id="view-label">View</span>
         <div class="seg" role="group" aria-labelledby="view-label" id="view-seg"></div>
       </div>
-      <div class="control">
+      <div class="control only-3d">
         <span class="label" id="shape-label">Chart</span>
         <div class="seg" role="group" aria-labelledby="shape-label" id="shape-seg">
           <button data-shape="pillars" aria-pressed="true">Pillars</button>
@@ -245,23 +242,46 @@
           <button data-scale="log" aria-pressed="false">Log</button>
         </div>
       </div>
-      <div class="control">
-        <span class="label">Percentiles shown</span>
-        <div class="range">
-          <input type="number" id="p-lo" min="1" max="100" value="1" aria-label="Lowest percentile shown">
-          to
-          <input type="number" id="p-hi" min="1" max="100" value="100" aria-label="Highest percentile shown">
+    </div>
+    <div class="controls">
+      <div class="control only-3d">
+        <span class="label" id="yr-label">Years shown</span>
+        <div class="age-row">
+          <div class="dual dual-wide">
+            <div class="dual-fill"></div>
+            <input type="range" id="y-lo" step="1" aria-label="First year shown">
+            <input type="range" id="y-hi" step="1" aria-label="Last year shown">
+          </div>
+          <output id="yr-out" for="y-lo y-hi"></output>
+        </div>
+      </div>
+      <div class="control only-3d">
+        <span class="label" id="pct-label">Percentiles shown</span>
+        <div class="age-row">
+          <div class="dual dual-wide">
+            <div class="dual-fill"></div>
+            <input type="range" id="p-lo" step="1" aria-label="Lowest percentile shown">
+            <input type="range" id="p-hi" step="1" aria-label="Highest percentile shown">
+          </div>
+          <output id="pct-out" for="p-lo p-hi"></output>
         </div>
       </div>
       <div class="control">
-        <span class="label">Years shown</span>
-        <div class="range">
-          <input type="number" id="y-lo" min="1950" max="2026" value="1950" aria-label="First year shown">
-          to
-          <input type="number" id="y-hi" min="1950" max="2026" value="2026" aria-label="Last year shown">
+        <span class="label" id="age-label">Age of household head</span>
+        <div class="age-row">
+          <div class="dual" id="age-dual">
+            <div class="dual-fill" id="age-fill"></div>
+            <input type="range" id="age-lo" step="1" aria-label="Youngest age of household head">
+            <input type="range" id="age-hi" step="1" aria-label="Oldest age of household head">
+          </div>
+          <output id="age-out" for="age-lo age-hi"></output>
         </div>
       </div>
     </div>
+  </div>
+
+  <div id="panel-explore" role="tabpanel" aria-labelledby="tab-explore">
+  <div class="card viz">
     <p class="view-note" id="view-note"></p>
     <div class="viz-grid">
     <div class="viz-3d">
@@ -432,14 +452,50 @@
   <div class="card trend">
     <div class="trend-head">
       <h2 id="trend-title">Share of wealth held by each group</h2>
-      <label class="check" for="trend-dfa" id="trend-dfa-wrap"><input type="checkbox" id="trend-dfa"> Compare with the Fed's figures (households, 1989 on)</label>
+      <div style="display:flex; flex-wrap:wrap; gap:6px 18px">
+        <label class="check" for="trend-top"><input type="checkbox" id="trend-top"> Top 0.1% and 0.01% (dashed)</label>
+        <label class="check" for="trend-dfa" id="trend-dfa-wrap"><input type="checkbox" id="trend-dfa"> Compare with the Fed's figures (households, 1989 on)</label>
+      </div>
     </div>
     <p id="trend-sub"></p>
     <div id="trend-chart" role="img" aria-label="Line chart of each wealth group's share over time"></div>
     <p class="trend-sum" id="trend-sum"></p>
   </div>
 
-  <p class="muted">Shares from WID.world (pre-tax national income, or net personal wealth, for each 1% group), added up into four groups; the Fed comparison is its Distributional Financial Accounts. Sources, method notes and where the sources disagree are on the 3-D map tab.</p>
+  <div class="card trend tx" id="tx-card">
+    <h2 id="tx-title">Cross-section by group</h2>
+    <p id="tx-sub">The same breakdowns as the 3-D map's cross-section, for the four groups instead of single percentiles.</p>
+    <div class="slice-head">
+      <span class="label" id="tx-axis-label" style="margin:0">Slice by</span>
+      <div class="seg" role="group" aria-labelledby="tx-axis-label" id="tx-axis-seg">
+        <button data-txaxis="year" aria-pressed="true">Year</button>
+        <button data-txaxis="group" aria-pressed="false">Group</button>
+      </div>
+      <input type="range" id="tx-slider" aria-label="Year or group to slice at">
+      <strong id="tx-out"></strong>
+    </div>
+    <div class="slice-head">
+      <span class="label" id="tx-bd-label" style="margin:0">Show</span>
+      <div class="seg" role="group" aria-labelledby="tx-bd-label" id="tx-bd-seg">
+        <button data-txbd="value" aria-pressed="true" id="tx-value">Wealth</button>
+        <button data-txbd="gender" aria-pressed="false">Gender</button>
+        <button data-txbd="race" aria-pressed="false">Race</button>
+        <button data-txbd="holdings" aria-pressed="false">Location of money</button>
+        <button data-txbd="sector" aria-pressed="false">Work sector</button>
+        <button data-txbd="age" aria-pressed="false">Age</button>
+      </div>
+      <div class="seg" role="group" aria-label="Work sector grouping" id="tx-sector-seg" hidden>
+        <button data-txsector="occupation" aria-pressed="true">Occupation</button>
+        <button data-txsector="work" aria-pressed="false">Work status</button>
+      </div>
+    </div>
+    <p class="slice-title" id="tx-chart-title" style="margin-top:12px"></p>
+    <div id="tx-chart" role="img" aria-label="Bar chart of the four groups"></div>
+    <p class="chart-key" id="tx-key"></p>
+    <div class="tx-table"><table id="tx-table"><thead></thead><tbody></tbody></table></div>
+    <p class="muted" id="tx-note"></p>
+  </div>
+  <p class="muted">Shares from WID.world (pre-tax national income, or net personal wealth, for each 1% group), added up into four groups; the top 0.1% and 0.01% are WID's own figures for those groups. The Fed comparison is its Distributional Financial Accounts, and the breakdowns come from the Survey of Consumer Finances. Sources, method notes and where the sources disagree are on the 3-D map tab.</p>
   </div>
 
   <div id="panel-checks" role="tabpanel" aria-labelledby="tab-checks" hidden>
@@ -555,15 +611,7 @@
     b.textContent = v.label; b.dataset.view = k;
     seg.appendChild(b);
   }
-  const ageSeg = document.getElementById("age-seg"), ageLoIn = document.getElementById("age-lo"), ageHiIn = document.getElementById("age-hi");
-  for (const [, label, lo, hi] of [[null, "All ages", AGE_MIN, AGE_MAX], ...AGES]) {
-    const b = document.createElement("button");
-    b.textContent = label; b.dataset.lo = lo; b.dataset.hi = hi;
-    ageSeg.appendChild(b);
-  }
-  ageSeg.addEventListener("click", e => {
-    if (e.target.dataset.lo) { state.ageLo = +e.target.dataset.lo; state.ageHi = +e.target.dataset.hi; update(); }
-  });
+  const ageLoIn = document.getElementById("age-lo"), ageHiIn = document.getElementById("age-hi");
   for (const inp of [ageLoIn, ageHiIn]) { inp.min = AGE_MIN; inp.max = AGE_MAX; }
   function syncAge() {
     ageLoIn.value = state.ageLo; ageHiIn.value = state.ageHi;
@@ -571,7 +619,6 @@
     const fill = document.getElementById("age-fill");
     fill.style.left = `${pos(state.ageLo)}%`; fill.style.width = `${pos(state.ageHi) - pos(state.ageLo)}%`;
     document.getElementById("age-out").textContent = ageOn() ? ageText() : "All ages";
-    ageSeg.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", +b.dataset.lo === state.ageLo && +b.dataset.hi === state.ageHi));
     // The upper handle sits on top, except at the top end, where both handles meet and only the lower one can move.
     ageHiIn.style.zIndex = state.ageLo >= AGE_MAX - 1 ? 0 : 2; ageLoIn.style.zIndex = 1;
   }
@@ -611,22 +658,30 @@
   document.getElementById("sector-seg").addEventListener("click", e => { if (e.target.dataset.sector) { state.sector = e.target.dataset.sector; update(); } });
   document.getElementById("shape-seg").addEventListener("click", e => { if (e.target.dataset.shape) { state.shape = e.target.dataset.shape; update(); } });
   document.getElementById("scale-seg").addEventListener("click", e => { if (e.target.dataset.scale) { state.scale = e.target.dataset.scale; update(); } });
-  const loIn = document.getElementById("p-lo"), hiIn = document.getElementById("p-hi");
-  function readRange() {
-    let lo = Math.max(1, Math.min(100, +loIn.value || 1)), hi = Math.max(1, Math.min(100, +hiIn.value || 100));
-    if (lo > hi) [lo, hi] = [hi, lo];
-    state.lo = lo; state.hi = hi; update();
+  // Two-handle sliders for the 3-D map's years and percentiles, built like the age slider:
+  // dragging redraws once per frame, and the handles can't cross.
+  function dualSlider(loId, hiId, outId, min, max, [kLo, kHi], text) {
+    const lo = document.getElementById(loId), hi = document.getElementById(hiId), fill = lo.parentElement.querySelector(".dual-fill");
+    for (const inp of [lo, hi]) { inp.min = min; inp.max = max; }
+    let frame = 0;
+    const sync = () => {
+      lo.value = state[kLo]; hi.value = state[kHi];
+      const pos = v => (v - min) / (max - min) * 100;
+      fill.style.left = `${pos(state[kLo])}%`; fill.style.width = `${pos(state[kHi]) - pos(state[kLo])}%`;
+      document.getElementById(outId).textContent = text();
+      hi.style.zIndex = state[kLo] >= max - 1 ? 0 : 2; lo.style.zIndex = 1;
+    };
+    for (const [inp, isLo] of [[lo, true], [hi, false]]) inp.addEventListener("input", () => {
+      const v = +inp.value;
+      if (isLo) state[kLo] = Math.min(v, state[kHi]); else state[kHi] = Math.max(v, state[kLo]);
+      sync(); cancelAnimationFrame(frame); frame = requestAnimationFrame(update);
+    });
+    return sync;
   }
-  loIn.addEventListener("change", readRange); hiIn.addEventListener("change", readRange);
-  const y0In = document.getElementById("y-lo"), y1In = document.getElementById("y-hi");
-  y0In.min = y1In.min = years[0]; y0In.max = y1In.max = years[years.length - 1];
-  function readYears() {
-    const clamp = v => Math.max(years[0], Math.min(years[years.length - 1], Math.round(v)));
-    let a = clamp(+y0In.value || years[0]), b = clamp(+y1In.value || years[years.length - 1]);
-    if (a > b) [a, b] = [b, a];
-    state.y0 = a; state.y1 = b; update();
-  }
-  y0In.addEventListener("change", readYears); y1In.addEventListener("change", readYears);
+  const syncYears = dualSlider("y-lo", "y-hi", "yr-out", years[0], years[years.length - 1], ["y0", "y1"],
+    () => state.y0 === years[0] && state.y1 === years[years.length - 1] ? "All years" : `${state.y0}–${state.y1}`);
+  const syncPcts = dualSlider("p-lo", "p-hi", "pct-out", 1, 100, ["lo", "hi"],
+    () => state.lo === 1 && state.hi === 100 ? "All" : `${state.lo - 1}–${state.hi}%`);
   // Year indices inside the chosen range.
   // Wealth or income: same 1% bins, different WID series. Income stops at WID's last year.
   const INC = W.income, isInc = () => state.measure === "income";
@@ -1004,7 +1059,8 @@
     return byAgeCache[key] ||= Object.fromEntries(Object.keys(F.by_age[gs[0]]).map(k =>
       [k, F.by_age[gs[0]][k].map((row, si) => row.map((_, b) => gs.reduce((t, g) => t + F.by_age[g][k][si][b], 0)))]));
   };
-  const group = () => state.breakdown === "sector" ? state.sector : state.breakdown;
+  let bdOverride = null;  // set while the Trends cross-section computes its breakdown
+  const group = () => bdOverride || (state.breakdown === "sector" ? state.sector : state.breakdown);
   const BD = {
     gender: { denom: "adults", title: "Gender", unit: "adults" },
     race: { denom: "w", title: "Race", unit: "households" },
@@ -1210,7 +1266,7 @@
 
   function update() {
     syncButtons(); syncSliceInput();
-    loIn.value = state.lo; hiIn.value = state.hi; y0In.value = state.y0; y1In.value = state.y1;
+    syncYears(); syncPcts();
     avgYIn.value = state.avgY; avgPIn.value = state.avgP;
     const [ya, yb] = effRange();
     document.getElementById("view-note").textContent = viewNote() +
@@ -1222,38 +1278,94 @@
     document.getElementById("key-guess").textContent =
       `Estimated (${est.toLocaleString()} of ${(100 * (isInc() ? INC.years.length : years.length)).toLocaleString()}): WID shows exactly 0.00%`;
     drawTiers();
-    updateSlice(); draw(); drawTrend(); save();
+    updateSlice(); draw(); drawTrend(); drawTx(); save();
   }
 
-  // ---------- group shares over time (all ages; follows the measure and the years shown)
-  const trendChart = document.getElementById("trend-chart"), trendDfa = document.getElementById("trend-dfa");
+  // ---------- Trends: the four groups over time, plus the top 0.1% and 0.01%
+  // Follows the measure, view, height scale and age; always covers every year with data.
+  const trendChart = document.getElementById("trend-chart"), trendDfa = document.getElementById("trend-dfa"), trendTop = document.getElementById("trend-top");
   const TREND = [["Bottom 50%", 0, 50], ["Middle 40% (50th–90th)", 50, 90], ["Next 9% (90th–99th)", 90, 99], ["Top 1%", 99, 100]];
+  const EXTREME = [["Top 0.1%", "top01"], ["Top 0.01%", "top001"]];
+  const shortName = n => n.replace(/ \(.*\)/, "");
   let trendBound = false;
   trendDfa.addEventListener("change", () => { state.trendDfa = trendDfa.checked; save(); drawTrend(); });
+  trendTop.addEventListener("change", () => { state.trendTop = trendTop.checked; save(); drawTrend(); drawTx(); });
+  // One group's value in year j: the sum of its bins' shares, or (dollar views) the average of its
+  // bins' per-household values, since every bin holds the same number of households.
+  function groupValue(lo, hi, j) {
+    const rows = M()[state.view]; let t = 0;
+    for (let i = lo; i < hi; i++) { const v = rows[i][j]; if (v == null) return null; t += v; }
+    return state.view === "share" ? t : t / (hi - lo);
+  }
+  // WID's own top 0.1% / 0.01% figures; there's no age split that fine, so none when an age is chosen.
+  const extremeValue = (key, j) => ageOn() ? null : W.top_detail[isInc() ? "income" : "wealth"][key][state.view][j];
+  const extremesWanted = () => state.trendTop !== false && !ageOn();
+  // On a linear dollar scale the top 0.1% and 0.01% average hundreds of millions to billions, far above
+  // the other lines, so they're drawn only on the Share view or the Log scale.
+  const extremesFit = () => state.view === "share" || state.scale === "log";
+  const showExtremes = () => extremesWanted() && extremesFit();
+  function trendYears() {
+    const first = Math.max(isInc() ? INC.years[0] : years[0], ageOn() ? SV[0] : -Infinity);
+    const last = isInc() ? INC.years.at(-1) : years.at(-1);
+    return years.map((_, j) => j).filter(j => years[j] >= first && years[j] <= last);
+  }
+  function trendTitle(what) {
+    const [a, b] = [years[trendYears()[0]], years[trendYears().at(-1)]], inc = isInc();
+    const t = state.view === "share" ? `Share of ${inc ? "income" : "wealth"} held by each ${what}`
+      : state.view === "spend_years" ? `${inc ? "Income" : "Wealth"} in years of average household spending, by ${what}`
+      : `Average ${inc ? "pre-tax income" : "net worth"} per household, by ${what} (${VIEWS[state.view].label})`;
+    return `${t}, ${a}–${b}` + (ageOn() ? ` · head ${ageLabel()}` : "");
+  }
+  // Log view uses the same signed log as the 3-D chart, so net-debt years stay on the chart.
+  function valueAxis(allVals, text, grid) {
+    const view = VIEWS[state.view], ax = { color: text, gridcolor: grid, zerolinecolor: css("--text-muted") };
+    if (state.scale === "log") Object.assign(ax, ticksFor(Math.min(0, ...allVals), Math.max(...allVals), state.view), { tickmode: "array" });
+    else if (state.view === "share") ax.ticksuffix = "%";
+    else if (state.view === "spend_years") ax.ticksuffix = " yrs";
+    else { ax.tickprefix = "$"; ax.tickformat = "~s"; }
+    return ax;
+  }
+  const tf = v => v == null ? null : state.scale === "log" ? slog(v, VIEWS[state.view].logUnit) : v;
+  const tfmt = v => v == null ? "—" : state.view === "share" ? `${v.toFixed(1)}%` : VIEWS[state.view].fmt(v);
+
   function drawTrend() {
-    const inc = isInc(), shares = baseM().share;
-    const first = inc ? INC.years[0] : years[0], last = inc ? INC.years.at(-1) : years.at(-1);
-    const js = years.map((_, j) => j).filter(j => years[j] >= Math.max(first, state.y0) && years[j] <= Math.min(last, state.y1));
-    const xs = js.map(j => years[j]);
-    const series = TREND.map(([, lo, hi]) => js.map(j => { let t = 0; for (let i = lo; i < hi; i++) t += shares[i][j]; return t; }));
+    const view = VIEWS[state.view], inc = isInc(), log = state.scale === "log";
+    const js = trendYears(), xs = js.map(j => years[j]);
+    const main = TREND.map(([name, lo, hi]) => ({ name, vals: js.map(j => groupValue(lo, hi, j)) }));
+    const ext = showExtremes() ? EXTREME.map(([name, key]) => ({ name, vals: js.map(j => extremeValue(key, j)) })) : [];
+    trendTop.checked = state.trendTop !== false; trendTop.disabled = ageOn();
     const text = css("--text-secondary"), grid = css("--grid");
-    const traces = TREND.map(([name], gi) => ({
-      type: "scatter", mode: "lines", name, x: xs, y: series[gi], line: { color: css(`--cat-${gi + 1}`), width: 2.5 },
-      hovertemplate: `${name}: %{y:.1f}%<extra></extra>`,
+    const traces = main.map((s, gi) => ({
+      type: "scatter", mode: "lines", name: s.name, x: xs, y: s.vals.map(tf), text: s.vals.map(v => v == null ? "" : tfmt(v)),
+      line: { color: css(`--cat-${gi + 1}`), width: 2.5 }, hovertemplate: `${s.name}: %{text}<extra></extra>`,
     }));
-    const showDfa = !inc && state.trendDfa;
+    // The top 0.1% and 0.01% are inside the top 1%: thinner and dashed so they don't read as extra groups.
+    ext.forEach((s, ei) => traces.push({
+      type: "scatter", mode: "lines", name: `${s.name} (within the top 1%)`, x: xs, y: s.vals.map(tf), text: s.vals.map(v => v == null ? "" : tfmt(v)),
+      line: { color: css(`--cat-${ei + 5}`), width: 1.5, dash: "dash" }, hovertemplate: `${s.name}: %{text}<extra></extra>`, connectgaps: false,
+    }));
+    const showDfa = !inc && !ageOn() && state.view === "share" && state.trendDfa;
     trendDfa.checked = !!state.trendDfa;
-    document.getElementById("trend-dfa-wrap").hidden = inc;
+    document.getElementById("trend-dfa-wrap").hidden = inc || state.view !== "share";
     if (showDfa) {
       const dys = xs.filter(y => DFA[y]);
       DFA_KEYS.forEach((k, gi) => traces.push({
-        type: "scatter", mode: "lines", name: `${TREND[gi][0]} · Fed DFA`, x: dys, y: dys.map(y => DFA[y][k]), showlegend: gi === 0,
-        legendgroup: "dfa", line: { color: css(`--cat-${gi + 1}`), width: 1.5, dash: "dot" },
-        hovertemplate: `${TREND[gi][0]} (Fed DFA, households): %{y:.1f}%<extra></extra>`,
+        type: "scatter", mode: "lines", name: gi === 0 ? "Dotted: Fed DFA (households)" : `${TREND[gi][0]} · Fed DFA`, x: dys, y: dys.map(y => tf(DFA[y][k])),
+        showlegend: gi === 0, legendgroup: "dfa", line: { color: css(`--cat-${gi + 1}`), width: 1.5, dash: "dot" },
+        text: dys.map(y => `${DFA[y][k].toFixed(1)}%`), hovertemplate: `${TREND[gi][0]} (Fed DFA, households): %{text}<extra></extra>`,
       }));
-      traces[TREND.length].name = "Dotted: Fed DFA (households)";
     }
-    // Shade the years that are estimated rather than measured, and mark the slice year.
+    // The four groups set the scale. On a linear dollar scale the top 0.1% and 0.01% are many times
+    // larger, so they run off the top and their end label says so; Log shows them in full.
+    const mainVals = main.flatMap(s => s.vals).filter(v => v != null), extVals = ext.flatMap(s => s.vals).filter(v => v != null);
+    const yaxis = valueAxis([...mainVals, ...(log || state.view === "share" ? extVals : [])], text, grid);
+    let cap = Infinity;
+    if (!log) {
+      const top = Math.max(...mainVals, ...(state.view === "share" ? extVals : []));
+      cap = top * 1.08;
+      yaxis.range = [Math.min(0, ...mainVals) * 1.1, cap];
+    }
+    // Shade estimated years; mark the 3-D map's slice year.
     const tiers = xs.map(y => tierOf(y));
     const shapes = [], annotations = [], narrow = trendChart.clientWidth < 600;  // phones: legend only, no end labels
     const bands = { wid_imputed: "estimated from tax trends", wid_nowcast: "preliminary", extended_dfa: "extended with Fed data" };
@@ -1268,22 +1380,24 @@
     }
     if (state.year >= xs[0] && state.year <= xs.at(-1))
       shapes.push({ type: "line", xref: "x", yref: "paper", x0: state.year, x1: state.year, y0: 0, y1: 1, line: { color: css("--highlight"), width: 1.5, dash: "dash" } });
-    // Direct labels at the line ends (text in text colour; the line beside it carries the colour),
-    // pushed apart so close values don't overlap: at least ~7% of the axis height between labels.
-    const allY = series.flat(), span = Math.max(...allY, 0) - Math.min(...allY, 0), gap = span * 0.07;
-    const ends = TREND.map(([name], gi) => ({ name, v: series[gi].at(-1), y: series[gi].at(-1) })).sort((a, b) => a.y - b.y);
-    for (let i = 1; i < ends.length; i++) ends[i].y = Math.max(ends[i].y, ends[i - 1].y + gap);
-    if (!narrow) ends.forEach(e => annotations.push({ x: xs.at(-1), y: e.y, xref: "x", yref: "y", xanchor: "left", xshift: 6, showarrow: false,
-      text: `${e.name.replace(/ \(.*\)/, "")} ${e.v.toFixed(1)}%`, font: { size: 11, color: text } }));
+    // End labels, pushed apart so close values don't overlap; off-scale lines are labelled at the top edge.
+    const lastOf = vals => { for (let i = vals.length - 1; i >= 0; i--) if (vals[i] != null) return [xs[i], vals[i]]; return null; };
+    const plotted = [...mainVals, ...(log || state.view === "share" ? extVals : [])].map(tf);
+    const span = Math.max(...plotted, 0) - Math.min(...plotted, 0), gap = span * 0.07;
+    const ends = [...main, ...ext].map(s => { const l = lastOf(s.vals); return l && { name: shortName(s.name), x: l[0], v: l[1], y: Math.min(tf(l[1]), log ? Infinity : cap), off: !log && l[1] > cap }; })
+      .filter(Boolean).sort((a, b) => a.y - b.y);
+    for (let i = 1; i < ends.length; i++) if (!ends[i].off) ends[i].y = Math.max(ends[i].y, ends[i - 1].y + gap);
+    for (let i = ends.length - 2; i >= 0; i--) if (ends[i + 1].off && ends[i].off) ends[i].y = ends[i + 1].y - gap;
+    if (!narrow) ends.forEach(e => annotations.push({ x: e.x, y: e.y, xref: "x", yref: "y", xanchor: "left", xshift: 6, showarrow: false,
+      text: `${e.name} ${tfmt(e.v)}${e.off ? " ↑" : ""}`, font: { size: 11, color: text } }));
     Plotly.react(trendChart, traces, {
       paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
       font: { family: "Inter, system-ui, sans-serif", size: 12, color: text },
-      margin: { l: 48, r: narrow ? 12 : 132, t: 18, b: narrow ? 120 : 64 }, hovermode: "x unified",
+      margin: { l: 56, r: narrow ? 12 : 150, t: 18, b: narrow ? 150 : 64 }, hovermode: "x unified",
       hoverlabel: { bgcolor: css("--surface-1"), bordercolor: css("--border"), font: { color: css("--text-primary") } },
       legend: { orientation: "h", x: 0, y: 0, yanchor: "bottom", yref: "container", font: { size: 12 } },
       xaxis: { color: text, gridcolor: grid, showgrid: false, zeroline: false, range: [xs[0] - 1.5, xs.at(-1) + 0.5] },
-      yaxis: { color: text, gridcolor: grid, zerolinecolor: css("--text-muted"), ticksuffix: "%", rangemode: "tozero" },
-      shapes, annotations,
+      yaxis, shapes, annotations,
     }, { responsive: true, displayModeBar: false });
     if (!trendBound) {
       trendBound = true;
@@ -1295,16 +1409,129 @@
       });
     }
     const noun = inc ? "pre-tax income" : "household wealth";
-    document.getElementById("trend-title").textContent = `Share of ${inc ? "income" : "wealth"} held by each group, ${xs[0]}–${xs.at(-1)}`;
+    document.getElementById("trend-title").textContent = trendTitle("group");
+    const offScale = ext.some(s => s.vals.some(v => v != null && v > cap));
     document.getElementById("trend-sub").textContent =
-      `Each line is one group's share of all US ${noun} (WID, all ages; shaded years are estimated). Click a year to open it in the 3-D map.`;
-    // One-line summary: where each group started and ended in the years shown.
-    const peak = series[1].reduce((b, v, i) => v > series[1][b] ? i : b, 0);
-    document.getElementById("trend-sum").textContent = TREND.map(([name], gi) =>
-      `${name.replace(/ \(.*\)/, "")}: ${series[gi][0].toFixed(1)}% → ${series[gi].at(-1).toFixed(1)}%`).join(" · ") +
-      ` (${xs[0]} → ${xs.at(-1)}). The middle 40% peaked at ${series[1][peak].toFixed(1)}% in ${xs[peak]}` +
-      (bands[tiers[peak]] ? ` (an estimated year; ${bands[tiers[peak]]})` : "") + ".";
+      (state.view === "share" ? `Each line is one group's share of all US ${noun}` : `Each line is one group's average per household. ${VIEWS[state.view].note.replace(/\.$/, "")}`) +
+      ` (WID${ageOn() ? `; only households headed by someone ${ageLabel()}, from the Survey of Consumer Finances` : ", all ages"}; shaded years are estimated).` +
+      (ext.length ? " The dashed top 0.1% and 0.01% are part of the top 1%." : "") +
+      (offScale ? " On this scale they run off the top (↑); switch Height scale to Log to see them in full." : "") +
+      (extremesWanted() && !extremesFit() ? " The top 0.1% and 0.01% average far more than the other groups, so on this linear scale they're left off; their values are in the summary below, and Log shows their lines." : "") +
+      (ageOn() && state.trendTop !== false ? " The top 0.1% and 0.01% aren't available by age." : "") +
+      " Click a year to open it in the 3-D map.";
+    // Summary: where each line started and ended.
+    const firstOf = vals => vals.find(v => v != null);
+    // Off-chart extremes (linear dollar views) still get their numbers here.
+    const extAll = extremesWanted() && !extremesFit() ? EXTREME.map(([name, key]) => ({ name, vals: js.map(j => extremeValue(key, j)) })) : ext;
+    const sum = [...main, ...extAll].map(s => { const f = firstOf(s.vals), l = lastOf(s.vals); return f == null || !l ? "" : `${shortName(s.name)}: ${tfmt(f)} → ${tfmt(l[1])}`; }).filter(Boolean);
+    let note = ` (${xs[0]} → ${xs.at(-1)}).`;
+    if (state.view === "share") {
+      const mid = main[1].vals, peak = mid.reduce((b, v, i) => v != null && (mid[b] == null || v > mid[b]) ? i : b, 0);
+      note += ` The middle 40% peaked at ${tfmt(mid[peak])} in ${xs[peak]}` + (bands[tiers[peak]] ? ` (an estimated year; ${bands[tiers[peak]]})` : "") + ".";
+    }
+    document.getElementById("trend-sum").textContent = sum.join(" · ") + note;
   }
+
+  // ---------- Trends cross-section: the same breakdowns, by group instead of by percentile
+  const txChart = document.getElementById("tx-chart"), txSlider = document.getElementById("tx-slider");
+  const TX_GROUPS = TREND.map(([name, lo, hi]) => [shortName(name), lo, hi]);
+  if (state.txAxis == null) Object.assign(state, { txAxis: "year", txYear: years.at(-1), txGroup: 3, txBd: "gender", txSector: "occupation" });
+  document.getElementById("tx-axis-seg").addEventListener("click", e => { if (e.target.dataset.txaxis) { state.txAxis = e.target.dataset.txaxis; save(); drawTx(); } });
+  document.getElementById("tx-bd-seg").addEventListener("click", e => { if (e.target.dataset.txbd) { state.txBd = e.target.dataset.txbd; save(); drawTx(); } });
+  document.getElementById("tx-sector-seg").addEventListener("click", e => { if (e.target.dataset.txsector) { state.txSector = e.target.dataset.txsector; save(); drawTx(); } });
+  let txFrame = 0;
+  txSlider.addEventListener("input", () => {
+    if (state.txAxis === "year") state.txYear = +txSlider.value; else state.txGroup = +txSlider.value;
+    save(); cancelAnimationFrame(txFrame); txFrame = requestAnimationFrame(drawTx);
+  });
+  function drawTx() {
+    const bdKey = state.txBd === "sector" ? state.txSector : state.txBd, isValue = state.txBd === "value";
+    const js = trendYears(), yrs = js.map(j => years[j]);
+    const yLo = isValue ? yrs[0] : Math.max(yrs[0], SV[0]), yHi = isValue ? yrs.at(-1) : Math.min(yrs.at(-1), SV.at(-1));
+    const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+    state.txYear = clamp(state.txYear, yrs[0], yrs.at(-1)); state.txGroup = clamp(state.txGroup, 0, 3);
+    // controls
+    const pressed = (sel, attr, val) => document.querySelectorAll(`${sel} button`).forEach(b => b.setAttribute("aria-pressed", b.dataset[attr] === val));
+    pressed("#tx-axis-seg", "txaxis", state.txAxis); pressed("#tx-bd-seg", "txbd", state.txBd); pressed("#tx-sector-seg", "txsector", state.txSector);
+    document.getElementById("tx-sector-seg").hidden = state.txBd !== "sector";
+    document.getElementById("tx-value").textContent = isInc() ? "Income" : "Wealth";
+    const byYear = state.txAxis === "year";
+    if (byYear) { txSlider.min = yrs[0]; txSlider.max = yrs.at(-1); txSlider.step = 1; txSlider.value = state.txYear; }
+    else { txSlider.min = 0; txSlider.max = 3; txSlider.step = 1; txSlider.value = state.txGroup; }
+    document.getElementById("tx-out").textContent = byYear ? state.txYear : TX_GROUPS[state.txGroup][0];
+    const text = css("--text-secondary"), grid = css("--grid"), view = VIEWS[state.view];
+    const layoutBase = {
+      paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", font: { family: "Inter, system-ui, sans-serif", size: 12, color: text },
+      margin: { l: 64, r: 8, t: 8, b: 40 }, bargap: 0.25, showlegend: false, barmode: "stack",
+      hoverlabel: { bgcolor: css("--surface-1"), bordercolor: css("--border"), font: { color: css("--text-primary") } },
+      xaxis: { color: text, gridcolor: grid, showgrid: false, type: "category" },
+    };
+    const thead = document.querySelector("#tx-table thead"), tbody = document.querySelector("#tx-table tbody");
+    const note = document.getElementById("tx-note"), key = document.getElementById("tx-key");
+    if (isValue) {
+      // The groups' own values: the same numbers as the lines above.
+      const j = years.indexOf(state.txYear);
+      const rows = [...TX_GROUPS.map(([name, lo, hi], gi) => [name, groupValue(lo, hi, j), `--cat-${gi + 1}`]),
+                    ...(extremesWanted() ? EXTREME.map(([name, k2], ei) => [`${name}*`, extremeValue(k2, j), `--cat-${ei + 5}`]) : [])];
+      let x, y, colors;
+      if (byYear) { x = rows.map(r => r[0]); y = rows.map(r => r[1]); colors = rows.map(r => css(r[2])); }
+      else { const [, lo, hi] = TX_GROUPS[state.txGroup]; x = yrs.map(String); y = js.map(jj => groupValue(lo, hi, jj)); colors = x.map(() => css(`--cat-${state.txGroup + 1}`)); }
+      const yaxis = valueAxis(y.filter(v => v != null), text, grid);
+      if (state.scale !== "log" && byYear && state.view !== "share") {
+        const mainMax = Math.max(...y.slice(0, 4).filter(v => v != null));
+        yaxis.range = [Math.min(0, ...y.filter(v => v != null)) * 1.1, mainMax * 1.15];  // the tiny top groups would dwarf the rest
+      }
+      Plotly.react(txChart, [{ type: "bar", x, y: y.map(tf), marker: { color: colors }, text: y.map(v => v == null ? "" : view.fmt(v)),
+        textposition: "none", hovertemplate: "%{x}: %{text}<extra></extra>" }], { ...layoutBase, yaxis }, { responsive: true, displayModeBar: false });
+      document.getElementById("tx-chart-title").textContent = byYear ? `${trendTitle("group").replace(/, \d{4}–\d{4}/, "")}, ${state.txYear}` : `${TX_GROUPS[state.txGroup][0]}: ${trendTitle("group").split(",")[0].toLowerCase()}, ${yrs[0]}–${yrs.at(-1)}`;
+      const lastTop = years[W.top_detail.wealth.top01.share.reduce((b, v, i) => v != null ? i : b, 0)];
+      key.innerHTML = extremesWanted() && byYear ? `<span class="footnote">* The top 0.1% and 0.01% are part of the top 1%, and WID's figures for them run to ${lastTop}. On a linear dollar scale they can run off the top; the table has their values.</span>` : "";
+      thead.innerHTML = `<tr><th>Group</th><th class="num">${view.label}</th>${state.view === "share" ? "" : `<th class="num">Share of all ${isInc() ? "income" : "wealth"}</th>`}</tr>`;
+      const shareOf = (r, gi) => gi < 4 ? groupValueShare(TX_GROUPS[gi][1], TX_GROUPS[gi][2], j) : extremeShare(EXTREME[gi - 4][1], j);
+      tbody.innerHTML = byYear ? rows.map((r, gi) => `<tr><td>${r[0]}</td><td class="num">${tfmt(r[1])}</td>${state.view === "share" ? "" : `<td class="num">${(v => v == null ? "—" : `${v.toFixed(1)}%`)(shareOf(r, gi))}</td>`}</tr>`).join("") : "";
+      note.textContent = `${TIERS[tierOf(state.txYear)].label}.`;
+      return;
+    }
+    // Survey breakdowns: each group is the range of 1% bins it covers, in the survey's own ranking.
+    const cats = S.categories[bdKey];
+    bdOverride = bdKey;
+    let results, x;
+    try {
+      if (byYear) { x = TX_GROUPS.map(g => g[0]); results = TX_GROUPS.map(([, lo, hi]) => sharesAt(bdKey, state.txYear, lo + 1, hi)); }
+      else {
+        const [, lo, hi] = TX_GROUPS[state.txGroup];
+        const ys2 = []; for (let y = yLo; y <= yHi; y++) ys2.push(y);
+        x = ys2.map(String); results = ys2.map(y => sharesAt(bdKey, y, lo + 1, hi));
+      }
+      results.forEach((r, i) => { r.n = r.surveys.reduce((a, sv) => a + sums(SV.indexOf(sv), ["n"], byYear ? TX_GROUPS[i][1] + 1 : TX_GROUPS[state.txGroup][1] + 1, byYear ? TX_GROUPS[i][2] : TX_GROUPS[state.txGroup][2]).n / S.implicates, 0) / r.surveys.length; });
+    } finally { bdOverride = null; }
+    const traces = cats.map(([k2, label], ci) => ({
+      type: "bar", name: bdLabel(bdKey, k2, label), x, y: results.map(r => r.sh[k2] * 100),
+      marker: { color: bdColor(bdKey, ci), opacity: results.map((r, i) => (byYear ? !SV.includes(state.txYear) : !SV.includes(+x[i])) ? 0.55 : 1) },
+      hovertemplate: `%{x} · ${bdLabel(bdKey, k2, label)}: %{y:.1f}%<extra></extra>`,
+    }));
+    Plotly.react(txChart, traces, { ...layoutBase, yaxis: { color: text, gridcolor: grid, range: [0, 100], ticksuffix: "%", title: { text: `Share of ${BD[bdKey].unit} (%)`, font: { size: 11 } } } },
+      { responsive: true, displayModeBar: false });
+    const near = state.txYear < SV[0] ? SV[0] : state.txYear > SV.at(-1) ? SV.at(-1) : null;
+    document.getElementById("tx-chart-title").textContent = byYear
+      ? `${BD[bdKey].title}, by ${isInc() ? "income" : "wealth"} group, ${state.txYear}` + (near ? ` (no survey that year; showing ${near})` : "")
+      : `${BD[bdKey].title}: ${TX_GROUPS[state.txGroup][0]} by ${isInc() ? "income" : "wealth"}, ${yLo}–${yHi} (surveys every 3 years)`;
+    key.innerHTML = cats.map(([k2, label], ci) => `<span style="--c: ${bdColor(bdKey, ci)}">${bdLabel(bdKey, k2, label)}</span>`).join("") +
+      `<span style="--c: color-mix(in srgb, var(--text-muted) 55%, var(--surface-1))">Faded: no survey that year</span>` +
+      (bdKey === "gender" ? `<span class="footnote">${COUPLE_NOTE}</span>` : "");
+    // Table: categories down, groups (or survey years) across.
+    const cols = byYear ? x.map((name, i) => [name, results[i]]) : x.map((yy, i) => [yy, results[i]]).filter(([yy]) => SV.includes(+yy));
+    thead.innerHTML = `<tr><th></th>${cols.map(([c]) => `<th class="num">${c}</th>`).join("")}</tr>`;
+    tbody.innerHTML = cats.map(([k2, label], ci) => `<tr><td><span class="swatch" style="background: ${bdColor(bdKey, ci)}"></span>${bdLabel(bdKey, k2, label)}</td>${cols.map(([, r]) => `<td class="num">${(r.sh[k2] * 100).toFixed(1)}%</td>`).join("")}</tr>`).join("") +
+      (bdKey === "holdings" ? `<tr><td>Debt, % of assets</td>${cols.map(([, r]) => `<td class="num">${(r.t.debt / r.t.assets * 100).toFixed(0)}%</td>`).join("")}</tr>` : "") +
+      `<tr><td class="muted">Surveyed households</td>${cols.map(([, r]) => `<td class="num muted">${Math.round(r.n).toLocaleString()}</td>`).join("")}</tr>`;
+    note.textContent = `Survey of Consumer Finances${bdAgeFiltered2(bdKey) ? `, households headed by someone ${ageLabel()}` : ""}, ranked by ${isInc() ? "income" : "net worth"}. ` +
+      `Each group is the survey's own ${TX_GROUPS.map(g => g[0].toLowerCase()).join(", ")} of households, so shares can differ a little from WID's. Years between surveys are interpolated.`;
+  }
+  // The group's share of all wealth or income, for the dollar-view table; and the same for the top 0.1% / 0.01%.
+  function groupValueShare(lo, hi, j) { const rows = M().share; let t = 0; for (let i = lo; i < hi; i++) { if (rows[i][j] == null) return null; t += rows[i][j]; } return t; }
+  const extremeShare = (k2, j) => ageOn() ? null : W.top_detail[isInc() ? "income" : "wealth"][k2].share[j];
+  const bdAgeFiltered2 = k2 => ageOn() && k2 !== "age" && ageGroupsIn() !== null;
 
   // ---------- methodology text from the data
   const cpiB = W.macro[base].cpi_u, pceB = W.macro[base].pce_price_index;
@@ -1419,7 +1646,7 @@
   const nFallback = S.age_cells.wealth.flat().filter(c => c[2]).length;
   document.getElementById("m-age").textContent =
     `The age slider shows only the part of each 1% group held by households whose head (the survey's reference person) is within the chosen ages, ${AGE_MIN} to ${AGE_MAX}. ` +
-    `The buttons under it pick the Fed's own age groups from its Distributional Financial Accounts: under 40, 40–54, 55–69, and 70 and over. ` +
+
     `The split comes from the Survey of Consumer Finances: in each survey, households are ranked by net worth against all ages, and the chosen ages' share of every 1% group's net worth is applied to the chart's value for that group. ` +
     `For the Income measure, households are ranked by income and the chosen ages' share of the group's income is used. ` +
     `Years between surveys are interpolated in a straight line, ${SV[SV.length - 1] + 1} onward uses the ${SV[SV.length - 1]} survey, and there is no age split before ${SV[0]}. ` +
@@ -1442,7 +1669,8 @@
     }
     // Charts drawn while hidden have no width; resize them when their tab is shown.
     if (name === "explore") [chart, sliceChart].forEach(el => { try { Plotly.Plots.resize(el); } catch (e) {} });
-    if (name === "trends") { try { Plotly.Plots.resize(trendChart); } catch (e) {} drawTrend(); }  // labels depend on its width, 0 while hidden
+    document.body.dataset.tab = name;
+    if (name === "trends") { [trendChart, txChart].forEach(el => { try { Plotly.Plots.resize(el); } catch (e) {} }); drawTrend(); drawTx(); }  // labels depend on width, 0 while hidden
     try { history.replaceState(null, "", name === "explore" ? location.pathname + location.search : `#${name}`); } catch (e) {}
   }
   document.querySelector(".tabs").addEventListener("click", e => { const b = e.target.closest("[role=tab]"); if (b) showTab(b.id.slice(4)); });
