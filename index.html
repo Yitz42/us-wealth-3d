@@ -1451,8 +1451,9 @@
       }
       k = e + 1;
     }
-    if (state.year >= xs[0] && state.year <= xs.at(-1))
-      shapes.push({ type: "line", xref: "x", yref: "paper", x0: state.year, x1: state.year, y0: 0, y1: 1, line: { color: css("--highlight"), width: 1.5, dash: "dash" } });
+    // Mark the year the cross-section below is showing.
+    if (state.txAxis === "year" && state.txYear >= xs[0] && state.txYear <= xs.at(-1))
+      shapes.push({ type: "line", xref: "x", yref: "paper", x0: state.txYear, x1: state.txYear, y0: 0, y1: 1, line: { color: css("--highlight"), width: 1.5, dash: "dash" } });
     // End labels, pushed apart so close values don't overlap; off-scale lines are labelled at the top edge.
     const lastOf = vals => { for (let i = vals.length - 1; i >= 0; i--) if (vals[i] != null) return [xs[i], vals[i]]; return null; };
     const plotted = [...mainVals, ...(log || state.view === "share" ? extVals : [])].map(tf);
@@ -1480,8 +1481,8 @@
       trendChart.on("plotly_click", e => {
         const yr = e.points && e.points[0] && Math.round(e.points[0].x);
         if (!yr) return;
-        state.sliceAxis = "year"; state.year = yr; update();
-        showTab("explore"); document.querySelector(".viz").scrollIntoView({ block: "start" });
+        // Stay on Trends: the click picks the year for the cross-section below.
+        state.txAxis = "year"; state.txYear = yr; save(); drawTrend(); drawTx();
       });
     }
     const noun = inc ? "pre-tax income" : "household wealth";
@@ -1497,7 +1498,7 @@
       (offScale ? " On this scale they run off the top (↑); switch Height scale to Log to see them in full." : "") +
       (extremesWanted() && !extremesFit() ? " The top 0.1% and 0.01% average far more than the other groups, so on this linear scale they're left off; their values are in the summary below, and Log shows their lines." : "") +
 
-      " Click a year to open it in the 3-D map.";
+      " Click a year to see it in the cross-section below.";
     // Summary: where each line started and ended.
     const firstOf = vals => vals.find(v => v != null);
     // Off-chart extremes (linear dollar views) still get their numbers here.
@@ -1521,13 +1522,13 @@
   const txChart = document.getElementById("tx-chart"), txSlider = document.getElementById("tx-slider");
   const TX_GROUPS = TREND.map(([name, lo, hi]) => [shortName(name), lo, hi]);
   if (state.txAxis == null) Object.assign(state, { txAxis: "year", txYear: years.at(-1), txGroup: 3, txBd: "gender", txSector: "occupation" });
-  document.getElementById("tx-axis-seg").addEventListener("click", e => { if (e.target.dataset.txaxis) { state.txAxis = e.target.dataset.txaxis; save(); drawTx(); } });
+  document.getElementById("tx-axis-seg").addEventListener("click", e => { if (e.target.dataset.txaxis) { state.txAxis = e.target.dataset.txaxis; save(); drawTx(); drawTrend(); } });
   document.getElementById("tx-bd-seg").addEventListener("click", e => { if (e.target.dataset.txbd) { state.txBd = e.target.dataset.txbd; save(); drawTx(); } });
   document.getElementById("tx-sector-seg").addEventListener("click", e => { if (e.target.dataset.txsector) { state.txSector = e.target.dataset.txsector; save(); drawTx(); } });
   let txFrame = 0;
   txSlider.addEventListener("input", () => {
     if (state.txAxis === "year") state.txYear = +txSlider.value; else state.txGroup = +txSlider.value;
-    save(); cancelAnimationFrame(txFrame); txFrame = requestAnimationFrame(drawTx);
+    save(); cancelAnimationFrame(txFrame); txFrame = requestAnimationFrame(() => { drawTx(); drawTrend(); });
   });
   function drawTx() {
     const bdKey = state.txBd === "sector" ? state.txSector : state.txBd, isValue = state.txBd === "value";

@@ -31,7 +31,7 @@ through 2024): on the Share view and the Log scale they're drawn, and on linear 
 dwarf the chart, their values go in the summary instead. A **Source** switch picks WID, the Fed's
 Distributional Financial Accounts (households, year-end, 1989 on; wealth only; it publishes a top 0.1% but no top
 0.01%), or Compare (WID solid, the Fed dotted, in every view). The Fed's shares are computed from its dollar
-levels; `verify.py` checks them against its published shares. Clicking a year opens it in the 3-D map. Below the chart, a cross-section gives the same
+levels; `verify.py` checks them against its published shares. Clicking a year shows it in the cross-section below (the page stays on Trends). That cross-section gives the same
 breakdowns as the 3-D map's (Gender, Race, Location of money, Work sector, Age, or the groups' own values) for
 the four groups instead of single percentiles, by year or for one group over time, with a table; its values
 follow the Source switch (in Compare, the Fed's bars are striped beside WID's).
