@@ -405,6 +405,13 @@
         </ul>
       </div>
       <div class="card source">
+        <h3>Congressional Budget Office: household income</h3>
+        <p>Household income by group before and after means-tested transfers and federal taxes, 1979–2023, from The Distribution of Household Income, 2023. Households are ranked by size-adjusted income before transfers and taxes; each fifth holds about the same number of people. Shown on the Trends tab with the Income measure.</p>
+        <ul>
+          <li><a href="https://www.cbo.gov/publication/62761" target="_blank" rel="noopener">The Distribution of Household Income, 2023 (report and data)</a></li>
+        </ul>
+      </div>
+      <div class="card source">
         <h3>Totals, adults and households</h3>
         <p>WID's own averages per adult (<code>ahwealj992</code>, <code>aptincj992</code>), its adult count (<code>npopuli992</code>) and price index (<code>inyixxi999</code>) give the dollar views. The Fed's household net worth carries them past 2024, and the Census household count turns the Fed's figures into per-household dollars.</p>
         <ul>
@@ -530,7 +537,15 @@
     <div class="tx-table"><table id="typ-table"><thead></thead><tbody></tbody></table></div>
     <p class="muted" id="typ-note"></p>
   </div>
-  <p class="muted">Shares from WID.world (pre-tax national income, or net personal wealth, for each 1% group), added up into four groups; the top 0.1% and 0.01% are WID's own figures for those groups. The comparisons are the Fed's Distributional Financial Accounts and Smith, Zidar and Zwick's top wealth shares; the breakdowns come from the Survey of Consumer Finances; the household chart adds the Census Bureau's Survey of Income and Program Participation. Sources, method notes and where the sources disagree are on the 3-D map tab.</p>
+  <div class="card trend" id="cbo-card" hidden>
+    <h2 id="cbo-title">Before and after taxes and transfers</h2>
+    <p id="cbo-sub"></p>
+    <div id="cbo-chart" role="img" aria-label="Line chart of household income by group before and after taxes and transfers, from the Congressional Budget Office"></div>
+    <p class="slice-title" id="cbo-table-title" style="margin-top:12px"></p>
+    <div class="tx-table"><table id="cbo-table"><thead></thead><tbody></tbody></table></div>
+    <p class="muted" id="cbo-note"></p>
+  </div>
+  <p class="muted">Shares from WID.world (pre-tax national income, or net personal wealth, for each 1% group), added up into four groups; the top 0.1% and 0.01% are WID's own figures for those groups. The comparisons are the Fed's Distributional Financial Accounts and Smith, Zidar and Zwick's top wealth shares; the breakdowns come from the Survey of Consumer Finances; the household chart adds the Census Bureau's Survey of Income and Program Participation, and the Income measure's before-and-after chart is the Congressional Budget Office's. Sources, method notes and where the sources disagree are on the 3-D map tab.</p>
   </div>
 
   <div id="panel-checks" role="tabpanel" aria-labelledby="tab-checks" hidden>
@@ -1325,7 +1340,7 @@
     document.getElementById("key-guess").textContent =
       `Estimated (${est.toLocaleString()} of ${(100 * (isInc() ? INC.years.length : years.length)).toLocaleString()}): WID shows exactly 0.00%`;
     drawTiers();
-    updateSlice(); draw(); drawTrend(); drawTx(); drawTyp(); save();
+    updateSlice(); draw(); drawTrend(); drawTx(); drawTyp(); drawCbo(); save();
   }
 
   // ---------- Trends: the four groups over time, plus the top 0.1% and 0.01%
@@ -1526,7 +1541,7 @@
         const yr = e.points && e.points[0] && Math.round(e.points[0].x);
         if (!yr) return;
         // Stay on Trends: the click picks the year for the cross-section below.
-        state.txAxis = "year"; state.txYear = yr; save(); drawTrend(); drawTx();
+        state.txAxis = "year"; state.txYear = yr; save(); drawTrend(); drawTx(); drawCbo();
       });
     }
     const noun = inc ? "pre-tax income" : "household wealth";
@@ -1577,7 +1592,7 @@
   let txFrame = 0;
   txSlider.addEventListener("input", () => {
     if (state.txAxis === "year") state.txYear = +txSlider.value; else state.txGroup = +txSlider.value;
-    save(); cancelAnimationFrame(txFrame); txFrame = requestAnimationFrame(() => { drawTx(); drawTrend(); });
+    save(); cancelAnimationFrame(txFrame); txFrame = requestAnimationFrame(() => { drawTx(); drawTrend(); drawCbo(); });
   });
   function drawTx() {
     const bdKey = state.txBd === "sector" ? state.txSector : state.txBd, isValue = state.txBd === "value";
@@ -1768,6 +1783,81 @@
       `The SCF extract is in ${TYP.dollars_of} dollars (the Fed adjusts with its research CPI, CPI-U-RS); it's converted to each year's dollars here with CPI-U, which can differ by a few percent in early years.`;
   }
 
+  // ---------- Income before and after taxes and transfers (CBO), for the Income measure
+  // CBO ranks households by income before transfers and taxes, adjusted for size; each quintile holds about
+  // the same number of people. Solid lines are before transfers and taxes, dotted after, for the same households.
+  const cboChart = document.getElementById("cbo-chart"), CBO = W.cbo;
+  const CBO_GROUPS = [
+    ["Lowest fifth", ["lowest_quintile"]],
+    ["Middle three fifths", ["second_quintile", "middle_quintile", "fourth_quintile"]],
+    ["81st–99th percentiles", ["percentiles_81_90", "percentiles_91_95", "percentiles_96_99"]],
+    ["Top 1%", ["top_1_percent"]],
+  ];
+  const CBO_ROWS = [["Lowest fifth", "lowest_quintile"], ["Second fifth", "second_quintile"], ["Middle fifth", "middle_quintile"],
+    ["Fourth fifth", "fourth_quintile"], ["81st–90th", "percentiles_81_90"], ["91st–95th", "percentiles_91_95"],
+    ["96th–99th", "percentiles_96_99"], ["Top 1%", "top_1_percent"], ["All households", "all_quintiles"]];
+  // CBO's 2023 dollars (PCE-adjusted) back to that year's dollars, then into the chosen dollar view.
+  const cboNominal = (v, y) => v * W.macro[y].pce_price_index / W.macro[CBO.dollars_of].pce_price_index;
+  // A combined group: shares add up; dollars are averaged over the groups' households.
+  function cboValue(keys, field, i, v) {
+    const G = CBO.groups, y = CBO.years[i];
+    if (v === "share") return keys.reduce((t, k) => t + G[k][field === "inc_before_transfers_taxes" ? "share_before" : "share_after"][i], 0);
+    const hh = keys.reduce((t, k) => t + G[k].households[i], 0);
+    return typValue(cboNominal(keys.reduce((t, k) => t + G[k][field][i] * G[k].households[i], 0) / hh, y), y, v);
+  }
+  function drawCbo() {
+    const card = document.getElementById("cbo-card");
+    card.hidden = !isInc();
+    if (card.hidden) return;
+    const v = state.view, fmt = v === "share" ? (x => `${x.toFixed(1)}%`) : VIEWS[v].fmt, text = css("--text-secondary"), grid = css("--grid");
+    const xs = CBO.years, traces = [];
+    CBO_GROUPS.forEach(([name, keys], gi) => {
+      [["inc_before_transfers_taxes", "before", "solid"], ["inc_after_transfers_taxes", "after", "dot"]].forEach(([field, stage, dash]) => {
+        const vals = xs.map((_, i) => cboValue(keys, field, i, v));
+        traces.push({ type: "scatter", mode: "lines", name: stage === "before" ? name : `${name}, after`, x: xs, y: vals, text: vals.map(fmt), legendgroup: name,
+          showlegend: stage === "before", line: { color: css(`--cat-${gi + 1}`), width: stage === "before" ? 2.5 : 2, dash },
+          hovertemplate: `${name}, ${stage} taxes and transfers: %{text}<extra></extra>` });
+      });
+    });
+    traces.push({ type: "scatter", mode: "lines", x: [null], y: [null], name: "Solid: before taxes and transfers · dotted: after", hoverinfo: "skip",
+                  line: { color: css("--text-muted"), width: 2, dash: "dot" } });
+    const narrow = cboChart.clientWidth < 600, nLegend = traces.filter(t => t.showlegend !== false).length, legendH = narrow ? 24 * nLegend + 40 : 64;
+    cboChart.style.height = narrow ? `${320 + legendH}px` : "";
+    const yaxis = { color: text, gridcolor: grid, zerolinecolor: css("--text-muted"),
+                    type: state.scale === "log" ? "log" : "linear", ...(v === "share" ? { ticksuffix: "%" } : v === "spend_years" ? { ticksuffix: " yrs" } : { tickprefix: "$", tickformat: "~s" }) };
+    const ty = Math.min(xs.at(-1), Math.max(xs[0], state.txYear)), i = xs.indexOf(ty);
+    Plotly.react(cboChart, traces, {
+      paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", font: { family: "Inter, system-ui, sans-serif", size: 12, color: text },
+      margin: { l: 56, r: 12, t: 12, b: legendH }, hovermode: "x unified",
+      hoverlabel: { bgcolor: css("--surface-1"), bordercolor: css("--border"), font: { color: css("--text-primary") } },
+      legend: { orientation: "h", x: 0, y: 0, yanchor: "bottom", yref: "container", font: { size: 12 } },
+      xaxis: { color: text, gridcolor: grid, showgrid: false, zeroline: false, range: [xs[0] - 1, xs.at(-1) + 1] },
+      yaxis, shapes: [{ type: "line", xref: "x", yref: "paper", x0: ty, x1: ty, y0: 0, y1: 1, line: { color: css("--highlight"), width: 1.5, dash: "dash" } }],
+    }, { responsive: true, displayModeBar: false });
+    const dv = v === "share" ? "real_cpi" : v, dfmt = VIEWS[dv].fmt;
+    const unit = { nominal: "each year's dollars", real_cpi: `${base} dollars, CPI-U`, real_pce: `${base} dollars, PCE`, spend_years: "years of average consumer spending per household" }[dv];
+    document.getElementById("cbo-title").textContent = v === "share"
+      ? `Share of household income before and after taxes and transfers, ${xs[0]}–${xs.at(-1)} · CBO`
+      : `Average household income before and after taxes and transfers, ${xs[0]}–${xs.at(-1)} (${VIEWS[v].label}) · CBO`;
+    document.getElementById("cbo-sub").textContent =
+      `The Congressional Budget Office ranks households by income before transfers and taxes, adjusted for household size, into groups that each hold about the same number of people. ` +
+      `Solid lines are income before transfers and taxes (market income plus Social Security, Medicare and other social insurance); dotted lines are the same households after adding means-tested transfers (such as Medicaid, SNAP and SSI) and subtracting federal taxes. ` +
+      (v === "share" ? "Each line is the group's share of all household income." : "Each line is the group's average per household.") +
+      ` This is a different measure from WID's (pre-tax national income per adult, the lines above), so levels differ. Click a year on the chart above to pick the year for the table.`;
+    document.getElementById("cbo-table-title").textContent = `${ty}: average per household (${unit}) and share of all income`;
+    const G = CBO.groups, d = (k, f) => dfmt(typValue(cboNominal(G[k][f][i], ty), ty, dv)), pct = x => `${x.toFixed(1)}%`;
+    document.querySelector("#cbo-table thead").innerHTML = `<tr><th>Group</th><th class="num">Before</th><th class="num">+ Transfers</th><th class="num">− Federal taxes</th><th class="num">After</th><th class="num">Tax rate</th><th class="num">Share before</th><th class="num">Share after</th></tr>`;
+    document.querySelector("#cbo-table tbody").innerHTML = CBO_ROWS.map(([label, k]) =>
+      `<tr><td>${label}</td><td class="num">${d(k, "inc_before_transfers_taxes")}</td><td class="num">${d(k, "means_tested_transfers")}</td><td class="num">${d(k, "federal_taxes")}</td><td class="num">${d(k, "inc_after_transfers_taxes")}</td>` +
+      `<td class="num">${pct(G[k].federal_taxes[i] / G[k].inc_before_transfers_taxes[i] * 100)}</td><td class="num">${pct(G[k].share_before[i])}</td><td class="num">${pct(G[k].share_after[i])}</td></tr>`).join("");
+    const t1 = G.top_1_percent, q1 = G.lowest_quintile;
+    document.getElementById("cbo-note").textContent =
+      `In ${ty} the top 1% received ${pct(t1.share_before[i])} of household income before transfers and taxes and ${pct(t1.share_after[i])} after; the lowest fifth ${pct(q1.share_before[i])} before and ${pct(q1.share_after[i])} after. ` +
+      `Tax rate is federal taxes ÷ income before transfers and taxes. CBO counts federal taxes only (individual and corporate income, payroll and excise), not state and local taxes. ` +
+      `Households with negative income are left out of the lowest fifth but counted in the total, so the fifths can add up to a little more or less than 100%. ` +
+      `CBO publishes 2023 dollars adjusted with the PCE price index; they're converted to each year's dollars here with the same index (a later revision, so values can differ slightly).`;
+  }
+
   // The group's share of all wealth or income, for the dollar-view table; and the same for the top 0.1% / 0.01%.
   function groupValueShare(lo, hi, j) { const rows = M().share; let t = 0; for (let i = lo; i < hi; i++) { if (rows[i][j] == null) return null; t += rows[i][j]; } return t; }
   const extremeShare = (k2, j) => ageOn() ? null : W.top_detail[isInc() ? "income" : "wealth"][k2].share[j];
@@ -1834,6 +1924,10 @@
       ["Top 1% share of pre-tax income", "disputed", "Disputed (ongoing)",
        `<p>This chart uses WID's pre-tax national income (Piketty, Saez and Zucman): the top 1% received ${one(incShare(1960, 99, 100))}% in 1960 and ${one(incShare(incLast, 99, 100))}% in ${incLast}.</p>` +
        `<p>Auten and Splinter (2024) find top pre-tax income shares that are lower and have risen less since 1980, and little change in after-tax top shares. Piketty, Saez and Zucman (2024) reply that, once some of Auten and Splinter's assumptions about untaxed income are corrected, the two series become similar in level and trend. Iselin and Reck (2024) argue the evidence threatens Auten and Splinter's assumption about who holds unreported income, especially pass-through business income.</p>` +
+       (() => {
+         const G = CBO.groups, i = CBO.years.length - 1, y = CBO.years[i], j = years.indexOf(y);
+         return `<p>The Congressional Budget Office, which ranks households by size-adjusted income rather than adults by national income, puts the top 1% at ${one(G.top_1_percent.share_before[i])}% of household income before transfers and taxes in ${y} (WID: ${one(INC.measures.share[99][j])}% of pre-tax national income), and ${one(G.top_1_percent.share_after[i])}% after means-tested transfers and federal taxes. Its full series is on the Trends tab with the Income measure.</p>`;
+       })() +
        jevTag(["as_lower", "control_as_aftertax_rise", "psz_reply", "ir_reply"])],
       ["Jumps in 1987–1988", "method", "Possible tax-reporting effect",
        `<p>The top 1% share rises ${signed(wealthGroupShare(1988, 99, 100) - wealthGroupShare(1986, 99, 100))} points of wealth and ${signed(incShare(1988, 99, 100) - incShare(1986, 99, 100))} points of income from 1986 to 1988, the largest two-year rise in either series. These years follow the Tax Reform Act of 1986, which changed how much business income appears on individual tax returns.</p>` +
@@ -1917,7 +2011,7 @@
     // Charts drawn while hidden have no width; resize them when their tab is shown.
     if (name === "explore") [chart, sliceChart].forEach(el => { try { Plotly.Plots.resize(el); } catch (e) {} });
     document.body.dataset.tab = name;
-    if (name === "trends") { [trendChart, txChart, typChart].forEach(el => { try { Plotly.Plots.resize(el); } catch (e) {} }); drawTrend(); drawTx(); drawTyp(); }  // labels depend on width, 0 while hidden
+    if (name === "trends") { [trendChart, txChart, typChart, cboChart].forEach(el => { try { Plotly.Plots.resize(el); } catch (e) {} }); drawTrend(); drawTx(); drawTyp(); drawCbo(); }  // labels depend on width, 0 while hidden
     try { history.replaceState(null, "", name === "explore" ? location.pathname + location.search : `#${name}`); } catch (e) {}
   }
   document.querySelector(".tabs").addEventListener("click", e => { const b = e.target.closest("[role=tab]"); if (b) showTab(b.id.slice(4)); });

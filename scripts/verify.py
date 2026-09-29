@@ -105,6 +105,18 @@ CLAIMS = {
         ("control_sipp_mean_all", "contradicts", "The published mean net worth includes every household, the wealthiest 1% among them."),
         ("control_sipp_furnishings", "contradicts", "Net worth includes the value of home furnishings."),
     ],
+    "CBO_household_income": [
+        ("cbo_ranking", "supports", "Households are ranked by their income before transfers and taxes, adjusted for household size."),
+        ("cbo_people", "supports", "Each income quintile contains about the same number of people, not the same number of households."),
+        ("cbo_federal_taxes", "supports",
+         "The taxes counted are federal: individual income taxes, payroll taxes, corporate income taxes and excise taxes."),
+        ("cbo_transfers", "supports",
+         "Means-tested transfers include Medicaid and CHIP, SNAP and Supplemental Security Income."),
+        ("cbo_pce", "supports", "Dollar amounts are adjusted for inflation with the price index for personal consumption expenditures."),
+        ("cbo_capital_gains", "supports", "Market income includes realized capital gains."),
+        ("control_cbo_households", "contradicts", "Each income quintile contains exactly the same number of households."),
+        ("control_cbo_cpi", "contradicts", "Dollar amounts are adjusted for inflation with the consumer price index for urban consumers (CPI-U)."),
+    ],
     "AutenSplinter_2024": [
         ("as_lower", "supports",
          "Auten and Splinter estimate top pre-tax income shares that are lower, and have risen less since 1980, than other studies using tax data."),
@@ -470,6 +482,45 @@ def other_source_checks(w):
     record("SCF 2022 median and mean match the Fed's published figures", all(abs(g) < 0.01 for g in gaps.values()),
            f"median ${t['median'][k]:,} vs ${SCF_2022_PUBLISHED['median']:,} published ({gaps['median']:+.2%}); mean ${t['mean'][k]:,} vs "
            f"${SCF_2022_PUBLISHED['mean']:,} ({gaps['mean']:+.2%}). The Fed averages its five imputed copies one at a time; this pools them.")
+
+    # CBO: the research CSVs match CBO's workbook, and each table adds up.
+    cbo = w["cbo"]
+    sh = read_xlsx(RAW / "cbo" / "62761-supp-data.xlsx")
+    names = {"All quintiles": "all_quintiles", "Lowest quintile": "lowest_quintile", "Second quintile": "second_quintile",
+             "Middle quintile": "middle_quintile", "Fourth quintile": "fourth_quintile", "Highest quintile": "highest_quintile",
+             "81st to 90th percentiles": "percentiles_81_90", "91st to 95th percentiles": "percentiles_91_95",
+             "96th to 99th percentiles": "percentiles_96_99", "Top 1 percent": "top_1_percent"}
+    sheets = {"3. Avg HH Income": ["market_inc", "social_insurance_benefits", "inc_before_transfers_taxes", "means_tested_transfers",
+                                   "federal_taxes", "inc_after_transfers_taxes"],
+              "10. Household Income Shares": ["share_market", "share_before", "share_after"]}
+    n_cells, worst, unknown = 0, 0.0, set()
+    for sheet, fields in sheets.items():
+        for _, c in sh[sheet]:
+            label = str(c.get("A") or "").strip()
+            if not str(c.get("B") or "").isdigit():
+                continue
+            g = names.get(label)
+            if g is None:
+                unknown.add(label); continue
+            i = cbo["years"].index(int(c["B"]))
+            for col, f in zip("CDEFGH", fields):
+                worst = max(worst, abs(float(c[col]) - cbo["groups"][g][f][i])); n_cells += 1
+    G = cbo["groups"]
+    split = max(abs(sum(G[k][f][i] for k in ("percentiles_81_90", "percentiles_91_95", "percentiles_96_99", "top_1_percent")) - G["highest_quintile"][f][i])
+                for f in ("share_before", "share_after") for i in range(len(cbo["years"])))
+    ident = max(abs(G[g]["inc_before_transfers_taxes"][i] + G[g]["means_tested_transfers"][i] - G[g]["federal_taxes"][i] - G[g]["inc_after_transfers_taxes"][i])
+                for g in G for i in range(len(cbo["years"])))
+    record("CBO data match CBO's workbook and add up", worst < 1e-9 and not unknown and split <= 0.25 and ident <= 200,
+           f"{n_cells:,} values in the research CSVs equal the supplemental workbook (Tables 3 and 10), {cbo['years'][0]}–{cbo['years'][-1]}; "
+           f"81st–90th + 91st–95th + 96th–99th + top 1% = highest quintile within {split:.2f} pp (rounding); "
+           f"before + transfers − taxes = after within ${ident:,.0f} for every group and year (CBO rounds to $100)"
+           + (f"; unrecognised groups {sorted(unknown)}" if unknown else ""))
+    wj = [(y, years.index(y)) for y in cbo["years"] if y in w["income"]["years"]]
+    gaps = [sum(w["income"]["measures"]["share"][i][j] for i in range(99, 100)) - G["top_1_percent"]["share_before"][cbo["years"].index(y)] for y, j in wj]
+    record("Cross-source: WID vs CBO top-1% income share", True,
+           f"WID's pre-tax national income share of the top 1% is on average {sum(gaps) / len(gaps):+.1f} pp vs CBO's income before transfers and taxes "
+           f"over {wj[0][0]}–{wj[-1][0]} (range {min(gaps):+.1f} to {max(gaps):+.1f}): WID ranks adults and counts all national income, "
+           f"CBO ranks people by household income adjusted for size, and counts household income rather than all national income", info=True)
 
     # Information: the two surveys in the one year both cover (SCF dollars are 2022 dollars).
     i = sp["years"].index(2022)

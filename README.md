@@ -40,6 +40,10 @@ follow the Source switch (in WID + Fed, the Fed's bars are striped beside WID's)
 net worth** puts the Census Bureau's SIPP (median, and mean for households below the 99th percentile, yearly 2014–2024)
 beside the SCF's median and means (computed from the survey files; the 2022 figures are checked against the Fed's
 published ones) and the Fed's national-accounts average (household net worth ÷ households), with a table for 2022.
+With the Income measure that chart is replaced by the Congressional Budget Office's **before and after taxes and
+transfers**: four groups (lowest fifth, middle three fifths, 81st–99th, top 1%), solid before and dotted after means-tested
+transfers and federal taxes, 1979–2023, as shares or average dollars per household, with a table for the year picked on the
+chart above (income, transfers, taxes, tax rate and shares for CBO's nine groups).
 **Checks** (`#checks`) holds the verification results.
 
 `favicon.svg` is the tab icon: the bottom 50%, middle 40% and next 9% stay low while the top 1% towers over them.
@@ -56,6 +60,8 @@ Then open http://localhost:8765. Opening `index.html` directly also works; it on
 
 ```bash
 python3 scripts/fetch_data.py    # WID US file, Fed DFA, FRED series, SCF, Smith-Zidar-Zwick, Census SIPP + their documentation -> data/raw/
+# CBO blocks scripted downloads: save 62761-supp-data.xlsx and the "additional data for researchers" CSVs
+# from https://www.cbo.gov/publication/62761 into data/raw/cbo/ by hand, before build_data.py.
 python3 scripts/build_data.py    # -> data/wealth.json, data/wealth.js (and data/gender_wid.json, not shown on the page)
 python3 scripts/build_scf.py     # -> data/scf.json, data/scf.js
 python3 scripts/verify.py        # -> data/verification.json, data/verification.js
@@ -78,6 +84,7 @@ Python 3.9+ standard library only. `fetch_data.py` pulls just the US files out o
 | Consumer spending | BEA via FRED `PCECA`, `PCE` | 1929– |
 | Gender, race, holdings by percentile | Fed Survey of Consumer Finances, summary extract | 1989–2022, triennial |
 | Top wealth shares (comparison) | Smith, Zidar & Zwick (2023), [supplemental data](https://www.ericzwick.com/wealth/Supplemental_data.zip), `TotalWealthShare.xlsx` Baseline | 1966–2016 |
+| Household income before and after transfers and taxes | CBO, [The Distribution of Household Income, 2023](https://www.cbo.gov/publication/62761): supplemental data and additional data for researchers (households ranked by income before transfers and taxes) | 1979–2023 |
 | Median and mean household net worth (comparison) | Census SIPP, [detailed wealth tables](https://www.census.gov/topics/income-poverty/wealth/data/tables.html) 1 and 5 (mean excludes the top 1%) | 2014–2024 |
 
 ## Verification and Jev

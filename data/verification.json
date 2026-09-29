@@ -151,6 +151,18 @@
    "info": false
   },
   {
+   "check": "CBO data match CBO's workbook and add up",
+   "ok": true,
+   "detail": "4,050 values in the research CSVs equal the supplemental workbook (Tables 3 and 10), 1979\u20132023; 81st\u201390th + 91st\u201395th + 96th\u201399th + top 1% = highest quintile within 0.10 pp (rounding); before + transfers \u2212 taxes = after within $100 for every group and year (CBO rounds to $100)",
+   "info": false
+  },
+  {
+   "check": "Cross-source: WID vs CBO top-1% income share",
+   "ok": true,
+   "detail": "WID's pre-tax national income share of the top 1% is on average +1.7 pp vs CBO's income before transfers and taxes over 1979\u20132023 (range -1.8 to +4.3): WID ranks adults and counts all national income, CBO ranks people by household income adjusted for size, and counts household income rather than all national income",
+   "info": true
+  },
+  {
    "check": "Cross-source: SIPP vs SCF, 2022",
    "ok": true,
    "detail": "median $176,500 (SIPP) vs $192,700 (SCF), -8%; mean below the 99th percentile $541,100 vs $694,573, -22%. The SCF oversamples wealthy households; SIPP isn't built to measure wealth at the top.",
@@ -770,6 +782,126 @@
     "id": "control_sipp_furnishings",
     "source": "Census_SIPP_wealth",
     "claim": "Net worth includes the value of home furnishings.",
+    "expect": "contradicts",
+    "verdict": "contradicts",
+    "confidence": 1.0,
+    "probabilities": {
+     "contradicts": 1.0,
+     "supports": 0.0,
+     "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": true
+   },
+   {
+    "id": "cbo_ranking",
+    "source": "CBO_household_income",
+    "claim": "Households are ranked by their income before transfers and taxes, adjusted for household size.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 1.0,
+    "probabilities": {
+     "contradicts": 0.0,
+     "supports": 1.0,
+     "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "cbo_people",
+    "source": "CBO_household_income",
+    "claim": "Each income quintile contains about the same number of people, not the same number of households.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 0.89,
+    "probabilities": {
+     "contradicts": 0.07,
+     "supports": 0.93,
+     "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "cbo_federal_taxes",
+    "source": "CBO_household_income",
+    "claim": "The taxes counted are federal: individual income taxes, payroll taxes, corporate income taxes and excise taxes.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 1.0,
+    "probabilities": {
+     "contradicts": 0.0,
+     "supports": 1.0,
+     "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "cbo_transfers",
+    "source": "CBO_household_income",
+    "claim": "Means-tested transfers include Medicaid and CHIP, SNAP and Supplemental Security Income.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 1.0,
+    "probabilities": {
+     "contradicts": 0.0,
+     "supports": 1.0,
+     "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "cbo_pce",
+    "source": "CBO_household_income",
+    "claim": "Dollar amounts are adjusted for inflation with the price index for personal consumption expenditures.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 0.97,
+    "probabilities": {
+     "contradicts": 0.01,
+     "supports": 0.98,
+     "not_addressed": 0.01
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "cbo_capital_gains",
+    "source": "CBO_household_income",
+    "claim": "Market income includes realized capital gains.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 1.0,
+    "probabilities": {
+     "contradicts": 0.0,
+     "supports": 1.0,
+     "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "control_cbo_households",
+    "source": "CBO_household_income",
+    "claim": "Each income quintile contains exactly the same number of households.",
+    "expect": "contradicts",
+    "verdict": "contradicts",
+    "confidence": 0.94,
+    "probabilities": {
+     "contradicts": 0.96,
+     "supports": 0.02,
+     "not_addressed": 0.02
+    },
+    "status": "pass",
+    "control": true
+   },
+   {
+    "id": "control_cbo_cpi",
+    "source": "CBO_household_income",
+    "claim": "Dollar amounts are adjusted for inflation with the consumer price index for urban consumers (CPI-U).",
     "expect": "contradicts",
     "verdict": "contradicts",
     "confidence": 1.0,

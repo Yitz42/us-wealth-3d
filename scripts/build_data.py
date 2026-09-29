@@ -11,7 +11,8 @@ table B.101.h, from 1987:Q4; before that households and nonprofits, TNWBSHNO, sc
 Dollars are deflated with CPI-U or the PCE price index, or divided by consumer spending per adult (PCE).
 
 Also written, for the Trends tab: the Fed DFA's own group figures, Smith-Zidar-Zwick's top wealth
-shares (1966-2016), and the Census SIPP's median and mean household net worth (2014-2024).
+shares (1966-2016), the Census SIPP's median and mean household net worth (2014-2024), and CBO's
+household income before and after transfers and taxes (1979-2023).
 """
 import calendar, csv, glob, json, pathlib, statistics
 from collections import defaultdict
@@ -249,6 +250,41 @@ def load_sipp():
     return out
 
 
+# CBO, The Distribution of Household Income, 2023 (publication 62761): households ranked by income
+# before transfers and taxes, adjusted for household size; each quintile holds about the same number
+# of people. Dollars are averages per household in 2023 dollars (CBO deflates with the PCE price index).
+# cbo.gov blocks scripted downloads, so these files are saved into data/raw/cbo by hand (see README).
+CBO_DIR = RAW / "cbo"
+CBO_PREFIX = "households_ranked_by_inc_before_trans_tax_table_"
+CBO_GROUPS = ["lowest_quintile", "second_quintile", "middle_quintile", "fourth_quintile", "highest_quintile",
+              "percentiles_81_90", "percentiles_91_95", "percentiles_96_99", "top_1_percent", "all_quintiles"]
+CBO_DOLLAR_YEAR = 2023
+
+
+def load_cbo():
+    def table(n):
+        f = next(CBO_DIR.glob(f"{CBO_PREFIX}{n:02d}_*.csv"))
+        with open(f, newline="", encoding="utf-8-sig") as fh:
+            return [r for r in csv.DictReader(fh) if r["household_type"] == "all_households"]
+    t1, t3, t10 = table(1), table(3), table(10)
+    years = sorted({int(r["year"]) for r in t10})
+    out = {"years": years, "dollars_of": CBO_DOLLAR_YEAR, "groups": {}}
+    for g in CBO_GROUPS:
+        row = lambda t, y: next(r for r in t if r["income_group"] == g and int(r["year"]) == y)
+        d = defaultdict(list)
+        for y in years:
+            a, sh, dm = row(t3, y), row(t10, y), row(t1, y)
+            d["households"].append(float(dm["num_households"]) * 1e6)
+            for k in ("market_inc", "social_insurance_benefits", "inc_before_transfers_taxes", "means_tested_transfers",
+                      "federal_taxes", "inc_after_transfers_taxes"):
+                d[k].append(float(a[k]))
+            d["share_market"].append(float(sh["market_inc"]))
+            d["share_before"].append(float(sh["inc_before_transfers_taxes"]))
+            d["share_after"].append(float(sh["inc_after_transfers_taxes"]))
+        out["groups"][g] = dict(d)
+    return out
+
+
 def main():
     wid, wid_quality = load_wid()
     wid_last = max(y for y, s in wid.items() if len(s) == 100)
@@ -467,7 +503,7 @@ def main():
             fed[g]["spend_years"][j] = round(per_hh / (mm["pce_total"] / mm["households"]), 3)
     fed_detail = {"quarter": fed_quarter, "groups": fed}
 
-    szz, sipp = load_szz(), load_sipp()
+    szz, sipp, cbo = load_szz(), load_sipp(), load_cbo()
 
     income = {"years": inc_years, "tier": inc_tier, "estimated": inc_est, "measures": inc_meas}
 
@@ -527,6 +563,8 @@ def main():
         "top_detail": top_detail,
         # Smith-Zidar-Zwick's top wealth shares (percent), aligned to `years`; null outside 1966-2016.
         "szz": {k: [szz[y][k] if y in szz else None for y in years] for k in SZZ_COLS.values()},
+        # CBO household income by group before and after transfers and taxes (see load_cbo).
+        "cbo": cbo,
         # Census SIPP household net worth by survey year, in that year's dollars.
         "sipp": {"years": sorted(sipp), **{k: [sipp[y][k] for y in sorted(sipp)] for k in ("median", "mean", "households")}},
         # Earlier years' household net worth = households-and-nonprofits total x this part (see module docstring).

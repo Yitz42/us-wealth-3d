@@ -112,6 +112,18 @@ def sipp_doc():
     }
 
 
+CBO_PAGE = "https://www.cbo.gov/publication/62761"
+
+
+def cbo_doc():
+    """CBO's own notes from its supplemental workbook (Contents and Notes sheet)."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from xlsx import read_xlsx
+    rows = [v for _, c in read_xlsx(RAW / "cbo" / "62761-supp-data.xlsx")["Contents and Notes"] for v in c.values() if v and v != "None"]
+    notes = rows[rows.index("Notes:") + 1:]
+    return {"url": CBO_PAGE, "title": rows[0], "notes": " ".join(notes)}
+
+
 # Research that disputes the page's main sources. The page summarizes each in its "Where sources
 # disagree" section; verify.py has Jev check those summaries against these passages, copied from
 # the papers (the PDFs aren't machine-readable here, so the passages are kept in the code).
@@ -188,6 +200,10 @@ def main():
     zipfile.ZipFile(io.BytesIO(get(SZZ_ZIP))).extractall(RAW / "szz")
     print("szz")
 
+    # CBO: cbo.gov blocks scripted downloads (a bot check), so its files are saved by hand.
+    if not (RAW / "cbo" / "62761-supp-data.xlsx").exists():
+        print(f"cbo: download the supplemental data and the additional data for researchers from {CBO_PAGE} into data/raw/cbo/")
+
     (RAW / "sipp").mkdir(exist_ok=True)
     for year, path in SIPP_FILES.items():
         (RAW / "sipp" / f"wealth_tables_dy{year}.xlsx").write_bytes(get(f"{SIPP_TABLES}/{path}"))
@@ -205,6 +221,8 @@ def main():
         "definitions": (RAW / "dfa" / "dfa-data-definitions.txt").read_text(errors="replace")[:2500],
     }
     docs["Census_SIPP_wealth"] = sipp_doc()
+    if (RAW / "cbo" / "62761-supp-data.xlsx").exists():
+        docs["CBO_household_income"] = cbo_doc()
     docs.update(LITERATURE)
     (RAW / "source_docs.json").write_text(json.dumps(docs, indent=2))
     print("source_docs.json")
