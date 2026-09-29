@@ -140,12 +140,13 @@ def spread_groups(all_bins, targets):
 ROUNDING_HALF = 0.000045  # inside ±0.00005 (with room for our own 4-decimal % rounding) so estimates round to WID's 0
 
 
-def fill_rounded_zeros(values):
+def fill_rounded_zeros(values, floor=None):
     """Estimate bins WID rounded to exactly 0. Returns (filled list, set of estimated indices).
 
     Bin shares rise with wealth rank, so a run of zeros is interpolated between the
     nearest published neighbours; a run at the very bottom is extrapolated from the
-    slope of the next twenty bins. Estimates are clamped to the rounding interval.
+    slope of the next twenty bins. Estimates are clamped to the rounding interval, and
+    to `floor` when given (income shares are never negative in WID).
     """
     v, guessed, i = list(values), set(), 0
     while i < len(v):
@@ -164,7 +165,7 @@ def fill_rounded_zeros(values):
             slope = (v[right + 20] - v[right]) / 20
             est = {k: v[right] - slope * (right - k) for k in range(a, b + 1)}
         for k, e in est.items():
-            v[k] = max(-ROUNDING_HALF, min(ROUNDING_HALF, e))
+            v[k] = max(-ROUNDING_HALF if floor is None else floor, min(ROUNDING_HALF, e))
             guessed.add(k)
     return v, guessed
 
@@ -306,7 +307,9 @@ def main():
     inc_tier = {}
     for y in inc_years:
         j, m = years.index(y), macro[y]
-        filled, g = fill_rounded_zeros([inc[y][b] for b in BINS])
+        # WID never publishes a negative income share, so estimates stay at or above zero
+        # (wealth can be negative: WID publishes net-debt bins).
+        filled, g = fill_rounded_zeros([inc[y][b] for b in BINS], floor=0.0)
         inc_tier[str(y)] = "measured" if inc_q.get(y) == "5" else "wid_imputed"
         for i, s_ in enumerate(filled):
             per_hh = s_ * national_income[y] / (m["households"] / 100)

@@ -99,7 +99,7 @@
   {
    "check": "Income: bins sum to 100% and match WID's group totals",
    "ok": true,
-   "detail": "1950-2024; largest deviation 0.073 pp from 100%, 0.046 pp from WID's bottom-50 / middle-40 / top-10",
+   "detail": "1950-2024; largest deviation 0.070 pp from 100%, 0.040 pp from WID's bottom-50 / middle-40 / top-10",
    "info": false
   },
   {

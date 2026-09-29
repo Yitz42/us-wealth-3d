@@ -1,10 +1,13 @@
 # US wealth distribution, 1950–now (3-D)
 
-`index.html` shows US net worth (1950–2026) or pre-tax income (1950–2024, WID `sptincj992`) for each
-1-percentile group, as 3-D pillars or a surface
+`index.html` has two tabs. **Explore** opens with a line chart of each group's share over time
+(bottom 50%, middle 40%, next 9%, top 1%; optionally with the Fed DFA's household figures dotted
+alongside; click a year to slice there). Below it, US net worth (1950–2026) or pre-tax income
+(1950–2024, WID `sptincj992`) for each 1-percentile group, as 3-D pillars or a surface
 (year × percentile × value), with five views: share of wealth, nominal dollars per
 household, real dollars (CPI-U), real dollars (PCE price index), and years of consumer spending.
-"Years shown" limits the year range. A slicer cuts the chart by year (all percentiles in one year) or by percentile (one group across
+"Years shown" limits the year range. The cross-section panel sits beside the 3-D chart on wide screens
+(below it, with a jump link, on narrow ones); clicking any pillar slices there. It cuts the chart by year (all percentiles in one year) or by percentile (one group across
 all years), shows that slice as a flat bar chart with a summary table, and can hide everything past it.
 Under the slicer, "Show" switches the flat chart between Wealth and three breakdowns from the Fed's
 Survey of Consumer Finances (1989–2022, every three years): Gender (women and men as a share of adults,
@@ -17,7 +20,8 @@ groups: under 40, 40–54, 55–69, 70 and over). It trims the 3-D chart, the sl
 each 1% group held by households whose head is in that age range, 1989 onward. The Show breakdowns follow the
 range when it starts and ends on the DFA groups' edges (40, 55, 70) and cover all ages otherwise. Percentiles
 still rank all ages. Clicking a bar opens a panel for that year and
-percentile, with options to average over neighbouring years and percentiles.
+percentile, with options to average over neighbouring years and percentiles. Sources, the method notes and
+"Where sources disagree" stay on Explore; the **Checks** tab (`#checks`) holds the verification results.
 
 ## Run
 
@@ -67,7 +71,7 @@ export TYPESAFE_API_KEY=...
 python3 scripts/verify.py
 ```
 
-Responses are cached in `data/jev_cache.json`. The page shows the results in its Verification section.
+Responses are cached in `data/jev_cache.json`. The page shows the results on its Checks tab.
 
 ## Where sources disagree
 
@@ -87,6 +91,6 @@ figures. `verify.py` has Jev check each summary of a paper against a passage fro
 - The age split comes from the SCF: each single year of age's share of every 1% group's net worth (or income),
   interpolated between surveys, held at 2022 after that, and unavailable before 1989. It is applied to
   WID's adult-based bins, so an age group's total can differ from the Fed DFA's figure by a few points
-  (see the Verification section). Bins where age groups' net worth has mixed signs are split by
+  (see the Checks tab). Bins where age groups' net worth has mixed signs are split by
   household share instead. Single pillars are noisy: each age group has only a few surveyed households per bin.
-- WID rounds each share to 0.01% of total wealth, so 350 of the 7,700 cells come out as exactly 0.00%. Those are estimated by interpolating between the nearest published neighbours (or, at the very bottom, extending the next 20 bins' trend). They're capped at ±0.0045% so they still round to WID's 0, and are drawn **grey** on the page. `verify.py` checks that every estimate replaces a published 0 and still rounds back to it.
+- WID rounds each share to 0.01% of total wealth, so 350 of the 7,700 cells come out as exactly 0.00%. Those are estimated by interpolating between the nearest published neighbours (or, at the very bottom, extending the next 20 bins' trend). They're capped at ±0.0045% so they still round to WID's 0, and are drawn **grey** on the page. The same applies to income (45 cells), except that income estimates are kept at or above zero, because WID never publishes a negative income share. `verify.py` checks that every estimate replaces a published 0 and still rounds back to it.
