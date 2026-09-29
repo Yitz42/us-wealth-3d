@@ -1353,6 +1353,12 @@
     return ax;
   }
   const tf = v => v == null ? null : state.scale === "log" ? slog(v, VIEWS[state.view].logUnit) : v;
+  // A year on a Trends line is a guess when WID estimated it (1950-61 from tax trends, preliminary
+  // recent years), when it was carried forward here with Fed data, or, with an age range set, when
+  // the age split falls between surveys. The Fed's own numbers are all published figures.
+  const ESTIMATED_TIERS = ["wid_imputed", "wid_nowcast", "extended_dfa"];
+  const isGuessYear = (y, src) => src !== "fed" && (ESTIMATED_TIERS.includes(tierOf(y)) || (ageOn() && !SV.includes(y)));
+  const greyed = c => mix(c, css("--guess"), 0.65);
   const tfmt = v => v == null ? "—" : state.view === "share" ? `${v.toFixed(1)}%` : VIEWS[state.view].fmt(v);
 
   function drawTrend() {
@@ -1382,15 +1388,37 @@
     document.getElementById("trend-top-wrap").hidden = ageOn();
     document.getElementById("trend-src-wrap").hidden = !fedOK();
     const text = css("--text-secondary"), grid = css("--grid");
+    const guess = xs.map(y => isGuessYear(y, src));
+    const label = (v, i) => v == null ? "" : tfmt(v) + (guess[i] ? " (estimated)" : "");
     const traces = main.map((s, gi) => ({
-      type: "scatter", mode: "lines", name: s.name, x: xs, y: s.vals.map(tf), text: s.vals.map(v => v == null ? "" : tfmt(v)),
+      type: "scatter", mode: "lines", name: s.name, x: xs, y: s.vals.map(tf), text: s.vals.map(label),
       line: { color: css(`--cat-${gi + 1}`), width: 2.5 }, hovertemplate: `${s.name}: %{text}<extra></extra>`,
     }));
     // The top 0.1% and 0.01% are inside the top 1%: thinner and dashed so they don't read as extra groups.
     ext.forEach((s, ei) => traces.push({
-      type: "scatter", mode: "lines", name: `${s.name} (within the top 1%)`, x: xs, y: s.vals.map(tf), text: s.vals.map(v => v == null ? "" : tfmt(v)),
+      type: "scatter", mode: "lines", name: `${s.name} (within the top 1%)`, x: xs, y: s.vals.map(tf), text: s.vals.map(label),
       line: { color: css(`--cat-${ei + 5}`), width: 1.5, dash: "dash" }, hovertemplate: `${s.name}: %{text}<extra></extra>`, connectgaps: false,
     }));
+    // Guessed stretches: the same line redrawn on top in a greyed version of its colour (a segment is
+    // grey when either end is a guess). Hover stays on the full-colour line underneath.
+    const overlay = (vals, color, width, dash) => ({
+      type: "scatter", mode: "lines", x: xs, showlegend: false, hoverinfo: "skip", connectgaps: false,
+      y: vals.map((v, i) => guess[i] || guess[i - 1] || guess[i + 1] ? tf(v) : null),
+      line: { color: greyed(css(color)), width, dash },
+    });
+    if (guess.some(Boolean)) {
+      main.forEach((s, gi) => traces.push(overlay(s.vals, `--cat-${gi + 1}`, 2.5)));
+      ext.forEach((s, ei) => traces.push(overlay(s.vals, `--cat-${ei + 5}`, 1.5, "dash")));
+      // With an age range, most years are interpolated between surveys: dots mark the survey years,
+      // where the age split was actually measured.
+      if (ageOn()) main.forEach((s, gi) => {
+        const idx = xs.map((y, i) => SV.includes(y) && s.vals[i] != null ? i : -1).filter(i => i >= 0);
+        traces.push({ type: "scatter", mode: "markers", x: idx.map(i => xs[i]), y: idx.map(i => tf(s.vals[i])), showlegend: false, hoverinfo: "skip",
+                      marker: { color: css(`--cat-${gi + 1}`), size: 7, line: { color: css("--surface-1"), width: 1.5 } } });
+      });
+      traces.push({ type: "scatter", mode: "lines", x: [null], y: [null], hoverinfo: "skip", line: { color: css("--guess"), width: 2.5 },
+                    name: ageOn() ? "Grey: interpolated between surveys (dots: survey years)" : "Grey: estimated years" });
+    }
     cmp.forEach((c, ci) => {
       const idx = c.vals.map((v, i) => v == null ? -1 : i).filter(i => i >= 0);
       traces.push({
@@ -1429,12 +1457,12 @@
     const lastOf = vals => { for (let i = vals.length - 1; i >= 0; i--) if (vals[i] != null) return [xs[i], vals[i]]; return null; };
     const plotted = [...mainVals, ...(log || state.view === "share" ? extVals : [])].map(tf);
     const span = Math.max(...plotted, 0) - Math.min(...plotted, 0), gap = span * 0.07;
-    const ends = [...main, ...ext].map(s => { const l = lastOf(s.vals); return l && { name: shortName(s.name), x: l[0], v: l[1], y: Math.min(tf(l[1]), log ? Infinity : cap), off: !log && l[1] > cap }; })
+    const ends = [...main, ...ext].map(s => { const l = lastOf(s.vals); return l && { name: shortName(s.name), x: l[0], v: l[1], y: Math.min(tf(l[1]), log ? Infinity : cap), off: !log && l[1] > cap, est: guess[xs.indexOf(l[0])] }; })
       .filter(Boolean).sort((a, b) => a.y - b.y);
     for (let i = 1; i < ends.length; i++) if (!ends[i].off) ends[i].y = Math.max(ends[i].y, ends[i - 1].y + gap);
     for (let i = ends.length - 2; i >= 0; i--) if (ends[i + 1].off && ends[i].off) ends[i].y = ends[i + 1].y - gap;
     if (!narrow) ends.forEach(e => annotations.push({ x: e.x, y: e.y, xref: "x", yref: "y", xanchor: "left", xshift: 6, showarrow: false,
-      text: `${e.name} ${tfmt(e.v)}${e.off ? " ↑" : ""}`, font: { size: 11, color: text } }));
+      text: `${e.name} ${tfmt(e.v)}${e.est ? " (est.)" : ""}${e.off ? " ↑" : ""}`, font: { size: 11, color: text } }));
     // On phones the legend stacks one entry per line, so the chart grows to fit it below the plot.
     const nLegend = traces.filter(t => t.showlegend !== false).length, legendH = narrow ? 24 * nLegend + 40 : 64;
     trendChart.style.height = narrow ? `${300 + legendH}px` : "";
@@ -1538,11 +1566,15 @@
                     ...(!extremesWanted() ? [] : useFed
                       ? [["Top 0.1%*", fedValue("top01", j), "--cat-5", fedTop(j) && fedTop(j).share[j], null]]
                       : EXTREME.map(([name, k2], ei) => [`${name}*`, extremeValue(k2, j), `--cat-${ei + 5}`, extremeShare(k2, j), k2 === "top01" ? fedValue("top01", j) : null]))];
-      let x, y, colors;
-      if (byYear) { x = rows.map(r => r[0]); y = rows.map(r => r[1]); colors = rows.map(r => css(r[2])); }
-      else {
+      let x, y, colors, fedColors;
+      if (byYear) {
+        x = rows.map(r => r[0]); y = rows.map(r => r[1]); fedColors = rows.map(r => css(r[2]));
+        colors = isGuessYear(state.txYear, src) ? fedColors.map(greyed) : fedColors;  // an estimated year: greyed bars
+      } else {
         const jj2 = useFed ? js.filter(jj => FED.quarter[years[jj]]) : js;
-        x = jj2.map(jj => String(years[jj])); y = jj2.map(jj => gv(state.txGroup, jj)); colors = x.map(() => css(`--cat-${state.txGroup + 1}`));
+        x = jj2.map(jj => String(years[jj])); y = jj2.map(jj => gv(state.txGroup, jj));
+        fedColors = x.map(() => css(`--cat-${state.txGroup + 1}`));
+        colors = x.map((yy, i) => isGuessYear(+yy, src) ? greyed(fedColors[i]) : fedColors[i]);
       }
       const yaxis = valueAxis(y.filter(v => v != null), text, grid);
       if (state.scale !== "log" && byYear && state.view !== "share") {
@@ -1555,7 +1587,7 @@
       if (src === "both") {
         const fy = byYear ? rows.map(r => r[4]) : js.map(jj => fedValue(FED_KEYS[state.txGroup], jj));
         bars.push({ type: "bar", name: "The Fed (striped)", x, y: fy.map(tf), text: fy.map(v => v == null ? "" : tfmt(v)), textposition: "none",
-          marker: { color: colors, pattern: { shape: "/", fgcolor: css("--surface-1"), solidity: 0.35 } },
+          marker: { color: fedColors, pattern: { shape: "/", fgcolor: css("--surface-1"), solidity: 0.35 } },
           hovertemplate: "%{x} (the Fed): %{text}<extra></extra>" });
       }
       Plotly.react(txChart, bars, { ...layoutBase, yaxis, barmode: src === "both" ? "group" : "stack", bargap: src === "both" ? 0.2 : 0.25,
@@ -1563,7 +1595,9 @@
       const base = trendTitle("group").replace(/, \d{4}–\d{4}/, "");
       document.getElementById("tx-chart-title").textContent = byYear ? `${base}, ${state.txYear}` : `${TX_GROUPS[state.txGroup][0]}: ${base.split(",")[0].toLowerCase()}, ${x[0]}–${x.at(-1)}`;
       const lastTop = years[W.top_detail.wealth.top01.share.reduce((b, v, i) => v != null ? i : b, 0)];
-      key.innerHTML = extremesWanted() && byYear ? `<span class="footnote">* ${useFed ? "The top 0.1% is part of the top 1% (the Fed doesn't publish a top 0.01%)." : `The top 0.1% and 0.01% are part of the top 1%, and WID's figures for them run to ${lastTop}.`} On a linear dollar scale they can run off the top; the table has their values.</span>` : "";
+      const anyGuess = colors.some((c, i) => c !== fedColors[i]);
+      key.innerHTML = (anyGuess ? `<span style="--c: var(--guess)">Grey: estimated ${byYear ? "year" : "years"}</span>` : "") +
+        (extremesWanted() && byYear ? `<span class="footnote">* ${useFed ? "The top 0.1% is part of the top 1% (the Fed doesn't publish a top 0.01%)." : `The top 0.1% and 0.01% are part of the top 1%, and WID's figures for them run to ${lastTop}.`} On a linear dollar scale they can run off the top; the table has their values.</span>` : "");
       const both = src === "both";
       thead.innerHTML = `<tr><th>Group</th><th class="num">${useFed ? "The Fed · " : both ? "WID · " : ""}${view.label}</th>${state.view === "share" ? "" : `<th class="num">Share of all ${isInc() ? "income" : "wealth"}</th>`}${both ? `<th class="num">The Fed · ${view.label}</th>` : ""}</tr>`;
       const pct = v => v == null ? "—" : `${v.toFixed(1)}%`;

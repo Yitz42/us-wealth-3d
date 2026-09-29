@@ -24,7 +24,9 @@ Measure, View, Height scale and the age slider sit above both chart tabs and app
 the year/percentile sliders apply to the 3-D map only.
 
 **Trends** (`#trends`) is a line chart of each group over time (bottom 50%, middle 40%, next 9%, top 1%), in
-any view, with estimated years shaded. Dashed lines add WID's top 0.1% and top 0.01% (part of the top 1%;
+any view. Estimated years (WID's 1950–61 and preliminary years, and 2025–26 carried forward with Fed data) are
+shaded and drawn in a greyed version of each line's colour; with an age range set, the years between surveys are
+greyed too, with dots at the survey years. Dashed lines add WID's top 0.1% and top 0.01% (part of the top 1%;
 through 2024): on the Share view and the Log scale they're drawn, and on linear dollar views, where they would
 dwarf the chart, their values go in the summary instead. A **Source** switch picks WID, the Fed's
 Distributional Financial Accounts (households, year-end, 1989 on; wealth only; it publishes a top 0.1% but no top
