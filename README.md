@@ -30,11 +30,16 @@ greyed too, with dots at the survey years. Dashed lines add WID's top 0.1% and t
 through 2024): on the Share view and the Log scale they're drawn, and on linear dollar views, where they would
 dwarf the chart, their values go in the summary instead. A **Source** switch picks WID, the Fed's
 Distributional Financial Accounts (households, year-end, 1989 on; wealth only; it publishes a top 0.1% but no top
-0.01%), or Compare (WID solid, the Fed dotted, in every view). The Fed's shares are computed from its dollar
+0.01%), WID + Fed (WID solid, the Fed dotted, in every view), or WID + SZZ (Smith, Zidar and Zwick's top wealth
+shares dotted over WID's, 1966–2016; Share view only, since they publish shares; the next 9% is their top 10%
+minus their top 1%, and the summary compares their bottom 90% with WID's). The Fed's shares are computed from its dollar
 levels; `verify.py` checks them against its published shares. Clicking a year shows it in the cross-section below (the page stays on Trends). That cross-section gives the same
 breakdowns as the 3-D map's (Gender, Race, Location of money, Work sector, Age, or the groups' own values) for
 the four groups instead of single percentiles, by year or for one group over time, with a table; its values
-follow the Source switch (in Compare, the Fed's bars are striped beside WID's).
+follow the Source switch (in WID + Fed, the Fed's bars are striped beside WID's). Below it, a chart of **a household's
+net worth** puts the Census Bureau's SIPP (median, and mean for households below the 99th percentile, yearly 2014–2024)
+beside the SCF's median and means (computed from the survey files; the 2022 figures are checked against the Fed's
+published ones) and the Fed's national-accounts average (household net worth ÷ households), with a table for 2022.
 **Checks** (`#checks`) holds the verification results.
 
 `favicon.svg` is the tab icon: the bottom 50%, middle 40% and next 9% stay low while the top 1% towers over them.
@@ -50,7 +55,7 @@ Then open http://localhost:8765. Opening `index.html` directly also works; it on
 ## Rebuild the data
 
 ```bash
-python3 scripts/fetch_data.py    # WID US file, Fed DFA, FRED series + their documentation -> data/raw/
+python3 scripts/fetch_data.py    # WID US file, Fed DFA, FRED series, SCF, Smith-Zidar-Zwick, Census SIPP + their documentation -> data/raw/
 python3 scripts/build_data.py    # -> data/wealth.json, data/wealth.js (and data/gender_wid.json, not shown on the page)
 python3 scripts/build_scf.py     # -> data/scf.json, data/scf.js
 python3 scripts/verify.py        # -> data/verification.json, data/verification.js
@@ -72,6 +77,8 @@ Python 3.9+ standard library only. `fetch_data.py` pulls just the US files out o
 | PCE price index | BEA via FRED `DPCERG3A086NBEA`, `PCEPI` | 1929– |
 | Consumer spending | BEA via FRED `PCECA`, `PCE` | 1929– |
 | Gender, race, holdings by percentile | Fed Survey of Consumer Finances, summary extract | 1989–2022, triennial |
+| Top wealth shares (comparison) | Smith, Zidar & Zwick (2023), [supplemental data](https://www.ericzwick.com/wealth/Supplemental_data.zip), `TotalWealthShare.xlsx` Baseline | 1966–2016 |
+| Median and mean household net worth (comparison) | Census SIPP, [detailed wealth tables](https://www.census.gov/topics/income-poverty/wealth/data/tables.html) 1 and 5 (mean excludes the top 1%) | 2014–2024 |
 
 ## Verification and Jev
 
@@ -95,7 +102,8 @@ The page has a section comparing WID's shares with the Fed's Distributional Fina
 Survey of Consumer Finances and published research: WID's top 1% wealth share is about 5 points above
 the Fed's, WID puts the bottom half's wealth below zero in 2007–2017 while the Fed and the survey don't,
 and the top 1% income share is disputed (Auten and Splinter 2024; replies by Piketty, Saez and Zucman
-and by Iselin and Reck). The year table flags groups 2 or more points from the Fed's or the survey's
+and by Iselin and Reck). It also compares the Census SIPP with the SCF: in 2022 the SIPP's median is 8% lower and
+its bottom-99% mean 22% lower. The year table flags groups 2 or more points from the Fed's or the survey's
 figures. `verify.py` has Jev check each summary of a paper against a passage from the paper, kept in
 `scripts/fetch_data.py`.
 

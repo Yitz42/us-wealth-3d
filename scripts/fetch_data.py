@@ -8,6 +8,16 @@ FRED_SERIES = ["CPIAUCNS", "DPCERG3A086NBEA", "PCEPI", "PCECA", "PCE", "TTLHH", 
 DFA_ZIP = "https://www.federalreserve.gov/releases/z1/dataviz/download/zips/dfa.zip"
 SCF_SURVEYS = [1989, 1992, 1995, 1998, 2001, 2004, 2007, 2010, 2013, 2016, 2019, 2022]
 SCF_FILES = "https://www.federalreserve.gov/econres/files"
+SZZ_ZIP = "https://www.ericzwick.com/wealth/Supplemental_data.zip"
+# Census SIPP detailed wealth tables: data year -> file (names and folders vary by year).
+SIPP_TABLES = "https://www2.census.gov/programs-surveys/demo/tables/wealth"
+SIPP_FILES = {
+    **{y: f"{y}/wealth-asset-ownership/wealth_tables_cy{y}.xlsx" for y in (2014, 2015, 2016, 2017)},
+    **{y: f"{y}/wealth-asset-ownership/Wealth_tables_dy{y}.xlsx" for y in (2018, 2019, 2020, 2021)},
+    2022: "2022/wealth-asset-ownership/wealth_tables_dy2022.xlsx",
+    2023: "2023/wealth-asset-ownership/wealth_tables_dy2023.xlsx",
+    2024: "2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx",
+}
 
 
 def get(url):
@@ -76,6 +86,32 @@ def scf_doc():
     }
 
 
+def sipp_doc():
+    """Census's own notes from the latest SIPP wealth tables, plus the definitions in its report."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from xlsx import read_xlsx
+    year = max(SIPP_FILES)
+    sh = read_xlsx(RAW / "sipp" / f"wealth_tables_dy{year}.xlsx")
+    def notes(table):
+        rows = [str(c.get("A") or "") for _, c in sh[table]]
+        return {"title": rows[1], "note": next(r for r in rows if r.startswith("NOTE"))[:900],
+                "source": next(r for r in rows if r.startswith("Source"))}
+    return {
+        "url": "https://www.census.gov/topics/income-poverty/wealth/data/tables.html",
+        "title": f"Census Bureau, Wealth, Asset Ownership, & Debt of Households Detailed Tables: {year} (Survey of Income and Program Participation)",
+        "table_1": notes("Table 1"),
+        "table_5": notes("Table 5"),
+        # From the report on the same data (Wealth of Households: 2024, P70BR-218); the PDF isn't
+        # machine-readable here, so the passage is kept in the code.
+        "report_definitions": "A household consists of a group of people occupying a housing unit together (group quarters such as "
+                              "dormitories, institutions, or nursing homes are excluded from this analysis). The householder is a person "
+                              "who owns or rents the housing unit. Wealth is the value of assets owned minus the debts owed. Therefore, "
+                              "wealth can be negative. The major assets not covered in this measure are equity in pension plans and the "
+                              "value of home furnishings. The median household wealth in 2024 was $204,900.",
+        "report_url": "https://www2.census.gov/library/publications/2026/demo/p70br-218.pdf",
+    }
+
+
 # Research that disputes the page's main sources. The page summarizes each in its "Where sources
 # disagree" section; verify.py has Jev check those summaries against these passages, copied from
 # the papers (the PDFs aren't machine-readable here, so the passages are kept in the code).
@@ -88,6 +124,16 @@ LITERATURE = {
                    "6.6, 4.6, 2.9, and 1.7 percentage points, respectively, to 33.7%, 15.7%, 7.1%, and 3.2%. In the PSZ "
                    "series, wealth shares increased by 10.0, 7.9, 5.4, and 3.1 percentage points to 36.6%, 18.6%, 9.5%, and 4.6%. "
                    "Across all approaches, top wealth shares have steadily risen since the 1980s.",
+    },
+    # Their data files, which the Trends tab plots (TotalWealthShare.xlsx, Baseline sheet).
+    "SmithZidarZwick_2023_data": {
+        "url": "https://www.ericzwick.com/wealth/Supplemental_data.zip",
+        "title": "Smith, Zidar and Zwick (2023), Top Wealth in America, replication package: TotalWealthShare.xlsx",
+        "readme": "TotalWealthShare.xlsx contains estimates for the total wealth share of top wealth groups over time for the "
+                  "baseline and each supplemental series.",
+        "baseline_columns": "Year, Bottom 90%, Top 10%, Top 1%, Top 0.1%, Top 0.01%; annual, 1966 to 2016.",
+        "unit_passage": "First, our approach defines the relevant observation at the individual level based on equal splits in "
+                        "tax units, whereas the SCF unit of observation is the household.",
     },
     "AutenSplinter_2024": {
         "url": "https://www.journals.uchicago.edu/doi/10.1086/728741",
@@ -139,6 +185,14 @@ def main():
     (RAW / "scf" / "bulletin.macro.txt").write_bytes(get(f"{SCF_FILES}/bulletin.macro.txt"))
     print("scf")
 
+    zipfile.ZipFile(io.BytesIO(get(SZZ_ZIP))).extractall(RAW / "szz")
+    print("szz")
+
+    (RAW / "sipp").mkdir(exist_ok=True)
+    for year, path in SIPP_FILES.items():
+        (RAW / "sipp" / f"wealth_tables_dy{year}.xlsx").write_bytes(get(f"{SIPP_TABLES}/{path}"))
+    print("sipp")
+
     docs = {sid: fred_doc(sid) for sid in FRED_SERIES}
     docs["WID_shwealj992"] = wid_doc()
     docs["WID_shwealf992"] = wid_doc("shwealf992")
@@ -150,6 +204,7 @@ def main():
         "title": "Distributional Financial Accounts: net worth shares by wealth percentile group",
         "definitions": (RAW / "dfa" / "dfa-data-definitions.txt").read_text(errors="replace")[:2500],
     }
+    docs["Census_SIPP_wealth"] = sipp_doc()
     docs.update(LITERATURE)
     (RAW / "source_docs.json").write_text(json.dumps(docs, indent=2))
     print("source_docs.json")

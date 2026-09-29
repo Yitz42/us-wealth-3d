@@ -5,14 +5,18 @@ Years after WID's last year are extended with the Fed's Distributional
 Financial Accounts (DFA): each WID bin is scaled by how much its DFA group's
 share changed since WID's last year, then shares are renormalized to 100%.
 
-Dollar views convert shares with Fed Z.1 net worth of households alone (FRED
-BOGZ1FL192090005Q, table B.101.h, from 1987:Q4). Before that the Fed publishes only
-households and nonprofits together (TNWBSHNO), so earlier years scale that total by the
-households' share of it in 1987:Q4. Household counts are Census (FRED TTLHH); dollars are
-deflated with CPI-U or the PCE price index, or divided by consumer spending per household (PCE).
+Dollar views are WID's own averages per adult (ahwealj992, aptincj992) times its price index;
+past WID's last year they grow with Fed Z.1 net worth of households alone (FRED BOGZ1FL192090005Q,
+table B.101.h, from 1987:Q4; before that households and nonprofits, TNWBSHNO, scaled to households).
+Dollars are deflated with CPI-U or the PCE price index, or divided by consumer spending per adult (PCE).
+
+Also written, for the Trends tab: the Fed DFA's own group figures, Smith-Zidar-Zwick's top wealth
+shares (1966-2016), and the Census SIPP's median and mean household net worth (2014-2024).
 """
-import calendar, csv, json, pathlib, statistics
+import calendar, csv, glob, json, pathlib, statistics
 from collections import defaultdict
+
+from xlsx import read_xlsx
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RAW = ROOT / "data" / "raw"
@@ -207,6 +211,42 @@ def year_end(dfa_or_z1, year):
     """Latest quarter available within `year` (Q4 when the year is complete)."""
     quarters = sorted(k for k in dfa_or_z1 if k[0] == year)
     return quarters[-1] if quarters else None
+
+
+# Smith, Zidar and Zwick (2023): top wealth shares, individuals with a couple's wealth split equally
+# (the same unit as WID), 1966-2016. Their Baseline series, from TotalWealthShare.xlsx.
+SZZ_FILE = RAW / "szz" / "Supplemental Data" / "TotalWealthShare.xlsx"
+SZZ_COLS = {"B": "bottom90", "C": "top10", "D": "top1", "E": "top01", "F": "top001"}
+
+
+def load_szz():
+    rows = read_xlsx(SZZ_FILE)["Baseline"]
+    assert [rows[1][1].get(c) for c in "ABCDEF"] == ["Year", "Bottom 90%", "Top 10%", "Top 1%", "Top 0.1%", "Top 0.01%"], rows[1]
+    out = {}
+    for _, c in rows[2:]:
+        if c.get("B") not in (None, ""):
+            out[int(c["A"])] = {k: float(c[col]) for col, k in SZZ_COLS.items()}
+    return out
+
+
+# Census SIPP: median and mean household net worth, from each year's detailed wealth tables
+# (Table 1: medians, Table 5: means, Table 4: households), in that year's dollars. Census's mean
+# covers households below the 99th percentile of net worth only.
+def load_sipp():
+    out = {}
+    for f in sorted(glob.glob(str(RAW / "sipp" / "wealth_tables_dy*.xlsx"))):
+        sh = read_xlsx(f)
+        year = int(f[-9:-5])
+        t1, t4, t5 = (dict(sh[f"Table {n}"]) for n in (1, 4, 5))
+        for t, title in ((t1, "Table 1. Median Value of Assets"), (t5, "Table 5. Mean Value of Assets"), (t4, "Table 4. Percent Distribution of Household Net Worth")):
+            assert t[2]["A"].startswith(title) and t[2]["A"].rstrip().endswith(str(year)), (f, t[2]["A"])
+        assert t1[3]["B"] == t5[3]["B"] == "Net Worth" and t1[5]["A"] == t4[5]["A"] == t5[5]["A"] == "Total", f
+        assert t4[3]["B"].startswith("Number of Households (thousands)"), f
+        # The published mean leaves out the top 1% of households; the page labels it that way.
+        note5 = next(c["A"] for _, c in sh["Table 5"] if str(c.get("A") or "").startswith("NOTE"))
+        assert "net worth below the 99th percentile" in note5, (f, note5)
+        out[year] = {"median": float(t1[5]["B"]), "mean": float(t5[5]["B"]), "households": float(t4[5]["B"]) * 1000}
+    return out
 
 
 def main():
@@ -427,6 +467,8 @@ def main():
             fed[g]["spend_years"][j] = round(per_hh / (mm["pce_total"] / mm["households"]), 3)
     fed_detail = {"quarter": fed_quarter, "groups": fed}
 
+    szz, sipp = load_szz(), load_sipp()
+
     income = {"years": inc_years, "tier": inc_tier, "estimated": inc_est, "measures": inc_meas}
 
     # --- Women and men: estimated 1% bins, 1962-2019 -------------------------------------
@@ -483,6 +525,10 @@ def main():
         "fed_detail": fed_detail,
         # Top 0.1% ("top01") and top 0.01% ("top001") by measure and view; null where WID has no value.
         "top_detail": top_detail,
+        # Smith-Zidar-Zwick's top wealth shares (percent), aligned to `years`; null outside 1966-2016.
+        "szz": {k: [szz[y][k] if y in szz else None for y in years] for k in SZZ_COLS.values()},
+        # Census SIPP household net worth by survey year, in that year's dollars.
+        "sipp": {"years": sorted(sipp), **{k: [sipp[y][k] for y in sorted(sipp)] for k in ("median", "mean", "households")}},
         # Earlier years' household net worth = households-and-nonprofits total x this part (see module docstring).
         "households_only_net_worth": {"from": f"{hh_first[0]}:Q{hh_first[1]}", "households_part": round(hh_part, 4)},
         # The Fed DFA's own shares for the same four groups (households, year-end quarter), 1989 on,

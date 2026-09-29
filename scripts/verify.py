@@ -87,6 +87,24 @@ CLAIMS = {
         ("szz_top1_rising", "supports", "Smith, Zidar and Zwick also find that the top 1% share of wealth rose between 1989 and 2016."),
         ("control_szz_top1_fell", "contradicts", "Smith, Zidar and Zwick find that the top 1% share of wealth fell between 1989 and 2016."),
     ],
+    # The Trends tab plots their data; these check its unit and coverage against their own files.
+    "SmithZidarZwick_2023_data": [
+        ("szz_unit", "supports",
+         "The series ranks individuals, with a tax unit's wealth split equally between its members, rather than households."),
+        ("szz_columns", "supports",
+         "The baseline series gives shares of total wealth for the bottom 90%, top 10%, top 1%, top 0.1% and top 0.01%."),
+        ("szz_years", "supports", "The baseline series is annual, from 1966 to 2016."),
+        ("control_szz_household", "contradicts", "The series ranks households, the same unit as the Survey of Consumer Finances."),
+    ],
+    "Census_SIPP_wealth": [
+        ("sipp_networth", "supports", "Household net worth is the value of assets owned minus debts owed, so it can be negative."),
+        ("sipp_household", "supports",
+         "The unit is the household: the people living together in one housing unit, with group quarters left out."),
+        ("sipp_mean_bottom99", "supports", "The mean values in Table 5 are estimated only over households whose net worth is below the 99th percentile."),
+        ("sipp_median_2024", "supports", "Median household net worth in 2024 was $204,900."),
+        ("control_sipp_mean_all", "contradicts", "The published mean net worth includes every household, the wealthiest 1% among them."),
+        ("control_sipp_furnishings", "contradicts", "Net worth includes the value of home furnishings."),
+    ],
     "AutenSplinter_2024": [
         ("as_lower", "supports",
          "Auten and Splinter estimate top pre-tax income shares that are lower, and have risen less since 1980, than other studies using tax data."),
@@ -398,6 +416,67 @@ def code_checks(w):
 
     record("Cross-source: WID vs Fed top-1% share", True,
            f"WID is on average {avg:+.1f} pp vs Fed DFA over {diffs[0][0]}-{diffs[-1][0]} (adults vs households; expected)", info=True)
+    checks += other_source_checks(w)
+    return checks
+
+
+# The Fed's published 2022 SCF figures (Changes in U.S. Family Finances from 2019 to 2022, Federal Reserve
+# Bulletin, October 2023, Table 2), in 2022 dollars.
+SCF_2022_PUBLISHED = {"median": 192_900, "mean": 1_063_700}
+
+
+def other_source_checks(w):
+    """Smith-Zidar-Zwick shares, Census SIPP net worth, and the SCF medians and means, re-read from the raw files."""
+    from xlsx import read_xlsx
+    checks = []
+
+    def record(name, ok, detail, info=False):
+        checks.append({"check": name, "ok": bool(ok), "detail": detail, "info": info})
+
+    years = w["years"]
+    # Smith-Zidar-Zwick: every value copied exactly, and the groups nest.
+    rows = read_xlsx(RAW / "szz" / "Supplemental Data" / "TotalWealthShare.xlsx")["Baseline"]
+    cols = {"B": "bottom90", "C": "top10", "D": "top1", "E": "top01", "F": "top001"}
+    raw = {int(c["A"]): {k: float(c[col]) for col, k in cols.items()} for _, c in rows[2:] if c.get("B") not in (None, "")}
+    worst, bad = 0.0, []
+    for y, v in raw.items():
+        j = years.index(y)
+        worst = max(worst, *(abs(w["szz"][k][j] - v[k]) for k in cols.values()))
+        if not (v["top001"] <= v["top01"] <= v["top1"] <= v["top10"] and abs(v["bottom90"] + v["top10"] - 100) < 0.01):
+            bad.append(y)
+    extra = [years[j] for j in range(len(years)) if w["szz"]["top1"][j] is not None and years[j] not in raw]
+    record("Smith–Zidar–Zwick shares copied exactly", worst == 0 and not bad and not extra,
+           f"{len(raw)} years {min(raw)}–{max(raw)} from TotalWealthShare.xlsx (Baseline); largest difference {worst:g} pp; "
+           f"top 0.01% ≤ 0.1% ≤ 1% ≤ 10% and bottom 90% + top 10% = 100% every year" + (f"; problems in {bad}" if bad else ""))
+
+    # Census SIPP: medians and means copied, medians below means, households near the Census count used elsewhere.
+    sp = w["sipp"]
+    worst, n_hh = 0.0, []
+    for i, y in enumerate(sp["years"]):
+        sh = read_xlsx(RAW / "sipp" / f"wealth_tables_dy{y}.xlsx")
+        t1, t5, t4 = (dict(sh[f"Table {n}"]) for n in (1, 5, 4))
+        worst = max(worst, abs(float(t1[5]["B"]) - sp["median"][i]), abs(float(t5[5]["B"]) - sp["mean"][i]))
+        n_hh.append(sp["households"][i] / w["macro"][str(y)]["households"] - 1)
+    order_ok = all(m < a for m, a in zip(sp["median"], sp["mean"]))
+    record("Census SIPP net worth copied exactly", worst == 0 and order_ok and max(map(abs, n_hh)) < 0.04,
+           f"{len(sp['years'])} years {sp['years'][0]}–{sp['years'][-1]} (Tables 1 and 5, Total row); largest difference ${worst:g}; "
+           f"median below the bottom-99% mean every year; SIPP's household count is within {max(map(abs, n_hh)):.1%} of the Census count (FRED TTLHH)")
+
+    # SCF medians and means: 2022 against the Fed's published figures.
+    scf = json.loads((ROOT / "data" / "scf.json").read_text())
+    t = scf["typical"]
+    k = scf["surveys"].index(2022)
+    gaps = {m: t[m][k] / SCF_2022_PUBLISHED[m] - 1 for m in SCF_2022_PUBLISHED}
+    record("SCF 2022 median and mean match the Fed's published figures", all(abs(g) < 0.01 for g in gaps.values()),
+           f"median ${t['median'][k]:,} vs ${SCF_2022_PUBLISHED['median']:,} published ({gaps['median']:+.2%}); mean ${t['mean'][k]:,} vs "
+           f"${SCF_2022_PUBLISHED['mean']:,} ({gaps['mean']:+.2%}). The Fed averages its five imputed copies one at a time; this pools them.")
+
+    # Information: the two surveys in the one year both cover (SCF dollars are 2022 dollars).
+    i = sp["years"].index(2022)
+    record("Cross-source: SIPP vs SCF, 2022", True,
+           f"median ${sp['median'][i]:,.0f} (SIPP) vs ${t['median'][k]:,} (SCF), {sp['median'][i] / t['median'][k] - 1:+.0%}; "
+           f"mean below the 99th percentile ${sp['mean'][i]:,.0f} vs ${t['mean_below_p99'][k]:,}, {sp['mean'][i] / t['mean_below_p99'][k] - 1:+.0%}. "
+           f"The SCF oversamples wealthy households; SIPP isn't built to measure wealth at the top.", info=True)
     return checks
 
 

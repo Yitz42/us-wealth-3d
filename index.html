@@ -389,6 +389,22 @@
         </ul>
       </div>
       <div class="card source">
+        <h3>Smith, Zidar &amp; Zwick: top wealth shares</h3>
+        <p>Top 10%, 1%, 0.1% and 0.01% shares of wealth, 1966–2016, from the same tax records and for the same unit as WID, but assuming the rich earn higher returns. Shown dotted on the Trends tab (Source: WID + SZZ).</p>
+        <ul>
+          <li><a href="https://academic.oup.com/qje/article/138/1/515/6678447" target="_blank" rel="noopener">Top Wealth in America (Quarterly Journal of Economics, 2023)</a></li>
+          <li><a href="https://www.ericzwick.com/wealth/Supplemental_data.zip" target="_blank" rel="noopener">Supplemental data (zip; TotalWealthShare.xlsx, Baseline)</a></li>
+        </ul>
+      </div>
+      <div class="card source">
+        <h3>Census Bureau: Survey of Income and Program Participation</h3>
+        <p>Median and mean household net worth, yearly 2014–2024, from the detailed wealth tables (Tables 1 and 5). Census's mean covers households below the 99th percentile only. Shown on the Trends tab against the SCF and the national accounts.</p>
+        <ul>
+          <li><a href="https://www.census.gov/topics/income-poverty/wealth/data/tables.html" target="_blank" rel="noopener">Wealth and asset ownership tables</a></li>
+          <li><a href="https://www2.census.gov/programs-surveys/demo/tables/wealth/2023/wealth-asset-ownership/wealth_tables_dy2024.xlsx" target="_blank" rel="noopener">2024 detailed tables (xlsx)</a> · <a href="https://www2.census.gov/library/publications/2026/demo/p70br-218.pdf" target="_blank" rel="noopener">Wealth of Households: 2024 (report)</a></li>
+        </ul>
+      </div>
+      <div class="card source">
         <h3>Totals, adults and households</h3>
         <p>WID's own averages per adult (<code>ahwealj992</code>, <code>aptincj992</code>), its adult count (<code>npopuli992</code>) and price index (<code>inyixxi999</code>) give the dollar views. The Fed's household net worth carries them past 2024, and the Census household count turns the Fed's figures into per-household dollars.</p>
         <ul>
@@ -461,7 +477,8 @@
           <span class="seg" role="group" aria-label="Whose numbers the lines show" id="trend-src-seg">
             <button data-src="wid" aria-pressed="true" title="WID.world: adults, 1950 on">WID</button>
             <button data-src="fed" aria-pressed="false" title="Federal Reserve Distributional Financial Accounts: households, 1989 on">Fed</button>
-            <button data-src="both" aria-pressed="false" title="WID solid, the Fed dotted">Compare</button>
+            <button data-src="both" aria-pressed="false" title="WID solid, the Fed dotted">WID + Fed</button>
+            <button data-src="szz" aria-pressed="false" id="trend-src-szz" title="WID solid, Smith, Zidar and Zwick dotted (share of wealth, 1966–2016)">WID + SZZ</button>
           </span>
         </span>
       </div>
@@ -505,7 +522,15 @@
     <div class="tx-table"><table id="tx-table"><thead></thead><tbody></tbody></table></div>
     <p class="muted" id="tx-note"></p>
   </div>
-  <p class="muted">Shares from WID.world (pre-tax national income, or net personal wealth, for each 1% group), added up into four groups; the top 0.1% and 0.01% are WID's own figures for those groups. The Fed comparison is its Distributional Financial Accounts, and the breakdowns come from the Survey of Consumer Finances. Sources, method notes and where the sources disagree are on the 3-D map tab.</p>
+
+  <div class="card trend" id="typ-card">
+    <h2 id="typ-title">A household's net worth: two surveys and the national accounts</h2>
+    <p id="typ-sub"></p>
+    <div id="typ-chart" role="img" aria-label="Line chart of median and mean household net worth from the Census SIPP, the Survey of Consumer Finances and the Fed's national accounts"></div>
+    <div class="tx-table"><table id="typ-table"><thead></thead><tbody></tbody></table></div>
+    <p class="muted" id="typ-note"></p>
+  </div>
+  <p class="muted">Shares from WID.world (pre-tax national income, or net personal wealth, for each 1% group), added up into four groups; the top 0.1% and 0.01% are WID's own figures for those groups. The comparisons are the Fed's Distributional Financial Accounts and Smith, Zidar and Zwick's top wealth shares; the breakdowns come from the Survey of Consumer Finances; the household chart adds the Census Bureau's Survey of Income and Program Participation. Sources, method notes and where the sources disagree are on the 3-D map tab.</p>
   </div>
 
   <div id="panel-checks" role="tabpanel" aria-labelledby="tab-checks" hidden>
@@ -1300,7 +1325,7 @@
     document.getElementById("key-guess").textContent =
       `Estimated (${est.toLocaleString()} of ${(100 * (isInc() ? INC.years.length : years.length)).toLocaleString()}): WID shows exactly 0.00%`;
     drawTiers();
-    updateSlice(); draw(); drawTrend(); drawTx(); save();
+    updateSlice(); draw(); drawTrend(); drawTx(); drawTyp(); save();
   }
 
   // ---------- Trends: the four groups over time, plus the top 0.1% and 0.01%
@@ -1315,7 +1340,10 @@
   if (state.trendSrc == null) state.trendSrc = state.trendDfa ? "both" : "wid";
   const FED = W.fed_detail, FED_KEYS = ["bottom50", "middle40", "next9", "top1"];
   const fedOK = () => !isInc() && !ageOn();
-  const trendSource = () => fedOK() ? state.trendSrc : "wid";
+  // Smith, Zidar and Zwick publish top wealth shares only (1966-2016): Share view, wealth, all ages.
+  const SZZ = W.szz, szzOK = () => fedOK() && state.view === "share";
+  const trendSource = () => state.trendSrc === "szz" ? (szzOK() ? "szz" : "wid") : fedOK() ? state.trendSrc : "wid";
+  const SRC_NAME = { both: "the Fed", szz: "Smith–Zidar–Zwick" };
   const fedValue = (g, j) => FED.quarter[years[j]] ? FED.groups[g][state.view][j] : null;
   document.getElementById("trend-src-seg").addEventListener("click", e => {
     const b = e.target.closest("button"); if (!b) return;
@@ -1347,7 +1375,7 @@
     const t = state.view === "share" ? `Share of ${inc ? "income" : "wealth"} held by each ${what}`
       : state.view === "spend_years" ? `${inc ? "Income" : "Wealth"} in years of average spending, by ${what}`
       : `Average ${inc ? "pre-tax income" : "net worth"} ${{ wid: "per adult", fed: "per household", both: "per adult (WID) or per household (the Fed)" }[trendSource()]}, by ${what} (${VIEWS[state.view].label})`;
-    const srcTag = { wid: "", fed: " · the Fed's figures", both: " · WID and the Fed" }[trendSource()];
+    const srcTag = { wid: "", fed: " · the Fed's figures", both: " · WID and the Fed", szz: " · WID and Smith–Zidar–Zwick" }[trendSource()];
     return `${t}, ${a}–${b}` + srcTag + (ageOn() ? (state.view === "share" ? ` · part held by heads ${ageLabel()}` : ` · contribution of heads ${ageLabel()}`) : "");
   }
   // Log view uses the same signed log as the 3-D chart, so net-debt years stay on the chart.
@@ -1386,15 +1414,22 @@
       ? [{ name: "Top 0.1%", vals: js.map(j => fedValue("top01", j)) }]
       : EXTREME.map(([name, key]) => ({ name, vals: js.map(j => extremeValue(key, j)) }));
     // Compare: the Fed's figures dotted over WID's, in the same colours.
-    const cmp = src !== "both" ? [] : [
+    // WID + SZZ: their top groups dotted over WID's. They publish nothing below the top 10%, so the next 9%
+    // is their top 10% minus their top 1%, and the bottom 50% and middle 40% get no dotted line.
+    const cmp = src === "both" ? [
       ...TREND.map(([name], gi) => ({ name, color: `--cat-${gi + 1}`, vals: js.map(j => fedValue(FED_KEYS[gi], j)) })),
-      ...(showExtremes() ? [{ name: "Top 0.1%", color: "--cat-5", vals: js.map(j => fedValue("top01", j)) }] : []),
-    ];
+      ...(showExtremes() ? [{ name: "Top 0.1%", color: "--cat-5", ext: true, vals: js.map(j => fedValue("top01", j)) }] : []),
+    ] : src === "szz" ? [
+      { name: TREND[2][0], color: "--cat-3", vals: js.map(j => SZZ.top10[j] == null ? null : SZZ.top10[j] - SZZ.top1[j]) },
+      { name: TREND[3][0], color: "--cat-4", vals: js.map(j => SZZ.top1[j]) },
+      ...(showExtremes() ? EXTREME.map(([name, key], ei) => ({ name, color: `--cat-${ei + 5}`, ext: true, vals: js.map(j => SZZ[key][j]) })) : []),
+    ] : [];
     // Options with no data for the current settings aren't shown: the Fed covers wealth for all ages,
     // and the top 0.1% / 0.01% have no age split.
     trendTop.checked = state.trendTop !== false;
     document.getElementById("trend-top-wrap").hidden = ageOn();
     document.getElementById("trend-src-wrap").hidden = !fedOK();
+    document.getElementById("trend-src-szz").hidden = !szzOK();
     const text = css("--text-secondary"), grid = css("--grid");
     const guess = xs.map(y => isGuessYear(y, src));
     const label = (v, i) => v == null ? "" : tfmt(v) + (guess[i] ? " (estimated)" : "");
@@ -1430,14 +1465,15 @@
     cmp.forEach((c, ci) => {
       const idx = c.vals.map((v, i) => v == null ? -1 : i).filter(i => i >= 0);
       traces.push({
-        type: "scatter", mode: "lines", name: ci === 0 ? "Dotted: Fed DFA (households)" : `${c.name} · Fed`, x: idx.map(i => xs[i]), y: idx.map(i => tf(c.vals[i])),
-        showlegend: ci === 0, legendgroup: "fed", line: { color: css(c.color), width: 1.5, dash: "dot" },
-        text: idx.map(i => tfmt(c.vals[i])), hovertemplate: `${c.name} (Fed, households): %{text}<extra></extra>`,
+        type: "scatter", mode: "lines", name: ci === 0 ? (src === "szz" ? "Dotted: Smith–Zidar–Zwick" : "Dotted: Fed DFA (households)") : `${c.name} · ${SRC_NAME[src]}`,
+        x: idx.map(i => xs[i]), y: idx.map(i => tf(c.vals[i])),
+        showlegend: ci === 0, legendgroup: "cmp", line: { color: css(c.color), width: 1.5, dash: "dot" },
+        text: idx.map(i => tfmt(c.vals[i])), hovertemplate: `${c.name} (${src === "szz" ? "SZZ" : "Fed, households"}): %{text}<extra></extra>`,
       });
     });
     // The four groups set the scale. On a linear dollar scale the top 0.1% and 0.01% are many times
     // larger, so they run off the top and their end label says so; Log shows them in full.
-    const cmpMain = cmp.slice(0, 4).flatMap(c => c.vals), cmpExt = cmp.slice(4).flatMap(c => c.vals);
+    const cmpMain = cmp.filter(c => !c.ext).flatMap(c => c.vals), cmpExt = cmp.filter(c => c.ext).flatMap(c => c.vals);
     const mainVals = [...main.flatMap(s => s.vals), ...cmpMain].filter(v => v != null), extVals = [...ext.flatMap(s => s.vals), ...cmpExt].filter(v => v != null);
     const yaxis = valueAxis([...mainVals, ...(log || state.view === "share" ? extVals : [])], text, grid);
     let cap = Infinity;
@@ -1500,6 +1536,7 @@
       (state.view === "share" ? `Each line is one group's share of all US ${noun}` : `Each line is one group's average ${src === "fed" ? "per household" : src === "both" ? "per adult (WID, solid) or per household (the Fed, dotted)" : "per adult"}.${src === "fed" ? "" : ` ${VIEWS[state.view].note.replace(/\.$/, "")}`}`) +
       (src === "fed" ? " (the Fed's Distributional Financial Accounts: households, year-end, 1989 on). These are the Fed's own estimates, not direct measurements: it spreads the national accounts using its survey, interpolating between surveys and projecting past the latest one (2022)."
         : ` (WID${ageOn() ? `; only households headed by someone ${ageLabel()}, from the Survey of Consumer Finances` : ", all ages"}; shaded years are estimated).`) +
+      (src === "szz" ? ` Dotted lines are Smith, Zidar and Zwick's estimates (${SZZ.top1.findIndex(v => v != null) >= 0 ? `${years[SZZ.top1.findIndex(v => v != null)]}–${years[SZZ.top1.findLastIndex(v => v != null)]}` : ""}), built from the same tax records and for the same unit as WID (adults, a couple's wealth split equally), but assuming the rich earn higher returns on their savings, which puts less wealth at the top. They publish nothing below the top 10%, so the bottom 50% and middle 40% have no dotted line.` : "") +
       (src === "both" ? " Dotted lines are the Fed's estimates for the same groups (interpolated between its surveys, projected after 2022): it ranks households rather than adults, so the top shares come out lower. Neither source is a direct measurement; the gap is a difference of population, concepts and method." : "") +
       (ext.length ? (src === "fed" ? " The dashed top 0.1% is part of the top 1% (the Fed doesn't publish a top 0.01%)." : " The dashed top 0.1% and 0.01% are part of the top 1%.") : "") +
 
@@ -1517,11 +1554,15 @@
       const mid = main[1].vals, peak = mid.reduce((b, v, i) => v != null && (mid[b] == null || v > mid[b]) ? i : b, 0);
       note += ` The middle 40% peaked at ${tfmt(mid[peak])} in ${xs[peak]}` + (bands[tiers[peak]] ? ` (an estimated year; ${bands[tiers[peak]]})` : "") + ".";
     }
-    // Compare: the same summary for the Fed's lines.
+    // Compare: the same summary for the other source's lines (and, for SZZ, the bottom 90% against WID's).
     if (cmp.length) {
       const fsum = cmp.map(c => { const f = firstOf(c.vals), l = lastOf(c.vals); return f == null || !l ? "" : `${shortName(c.name)}: ${tfmt(f)} → ${tfmt(l[1])}`; }).filter(Boolean);
-      const fy = xs.filter((_, i) => cmp[0].vals[i] != null);
-      note += ` The Fed (${fy[0]} → ${fy.at(-1)}): ${fsum.join(" · ")}.`;
+      const fi = xs.map((_, i) => i).filter(i => cmp[0].vals[i] != null), fy = fi.map(i => xs[i]);
+      if (src === "szz") {
+        const [a, b] = [js[fi[0]], js[fi.at(-1)]], b90 = j => groupValue(0, 90, j);
+        fsum.push(`Bottom 90%: ${tfmt(SZZ.bottom90[a])} → ${tfmt(SZZ.bottom90[b])} (WID: ${tfmt(b90(a))} → ${tfmt(b90(b))})`);
+      }
+      note += ` ${src === "szz" ? "Smith–Zidar–Zwick" : "The Fed"} (${fy[0]} → ${fy.at(-1)}): ${fsum.join(" · ")}.`;
     }
     document.getElementById("trend-sum").textContent = (src === "fed" ? "The Fed: " : "") + sum.join(" · ") + note;
   }
@@ -1652,6 +1693,81 @@
     note.textContent = `Survey of Consumer Finances${bdAgeFiltered2(bdKey) ? `, households headed by someone ${ageLabel()}` : ""}, ranked by ${isInc() ? "income" : "net worth"}. ` +
       `Each group is the survey's own ${TX_GROUPS.map(g => g[0].toLowerCase()).join(", ")} of households, so shares can differ a little from WID's. Years between surveys are interpolated.`;
   }
+  // ---------- A household's net worth: the Census SIPP, the SCF and the Fed's national accounts
+  // Per household, so it has no share view: Share falls back to CPI-U dollars. Wealth only, all ages.
+  const typChart = document.getElementById("typ-chart"), TYP = S.typical, SIPP = W.sipp;
+  const typView = () => state.view === "share" ? "real_cpi" : state.view;
+  // A household's nominal dollars in year y, in the chosen view (consumer spending: per household).
+  function typValue(nominal, y, v) {
+    const m = W.macro[y], b = W.macro[base];
+    if (nominal == null || !m) return null;
+    return v === "nominal" ? nominal : v === "real_cpi" ? nominal * b.cpi_u / m.cpi_u : v === "real_pce" ? nominal * b.pce_price_index / m.pce_price_index
+      : nominal / (m.pce_total / m.households);
+  }
+  // The SCF extract is in its latest survey's dollars; CPI-U turns that back into each year's dollars.
+  const scfNominal = (v, y) => v * W.macro[y].cpi_u / W.macro[TYP.dollars_of].cpi_u;
+  const fedMean = y => W.macro[y].net_worth_total / W.macro[y].households;
+  function drawTyp() {
+    const card = document.getElementById("typ-card");
+    card.hidden = isInc();
+    if (card.hidden) return;
+    const v = typView(), fmt = VIEWS[v].fmt, text = css("--text-secondary"), grid = css("--grid");
+    const fedYears = years.filter(y => y >= SV[0]);
+    // Colour is the statistic, the line style is the source.
+    const series = [
+      { name: "Median · SIPP", stat: 0, src: "sipp", x: SIPP.years, n: SIPP.median },
+      { name: "Median · SCF", stat: 0, src: "scf", x: SV, n: TYP.median.map((d, i) => scfNominal(d, SV[i])) },
+      { name: "Mean, bottom 99% · SIPP", stat: 1, src: "sipp", x: SIPP.years, n: SIPP.mean },
+      { name: "Mean, bottom 99% · SCF", stat: 1, src: "scf", x: SV, n: TYP.mean_below_p99.map((d, i) => scfNominal(d, SV[i])) },
+      { name: "Mean, all · SCF", stat: 2, src: "scf", x: SV, n: TYP.mean.map((d, i) => scfNominal(d, SV[i])) },
+      { name: "Mean, all · Fed national accounts", stat: 2, src: "z1", x: fedYears, n: fedYears.map(fedMean) },
+    ];
+    const COL = ["--cat-1", "--cat-2", "--cat-4"];
+    const traces = series.map(sr => {
+      const vals = sr.n.map((d, i) => typValue(d, sr.x[i], v)), c = css(COL[sr.stat]);
+      return {
+        type: "scatter", mode: sr.src === "z1" ? "lines" : "lines+markers", name: sr.name, x: sr.x, y: vals,
+        text: vals.map(fmt), hovertemplate: `${sr.name}: %{text}<extra></extra>`,
+        line: { color: c, width: sr.src === "z1" ? 1.5 : 2.5, dash: sr.src === "scf" ? "dot" : "solid" },
+        marker: { color: c, size: 8, symbol: sr.src === "scf" ? "circle-open" : "circle", line: { color: c, width: 2 } },
+      };
+    });
+    const narrow = typChart.clientWidth < 600, legendH = narrow ? 24 * traces.length + 40 : 64;
+    typChart.style.height = narrow ? `${320 + legendH}px` : "";
+    // Every value here is positive, so Log is a plain log axis.
+    const yaxis = { color: text, gridcolor: grid, zerolinecolor: css("--text-muted"), type: state.scale === "log" ? "log" : "linear",
+                    ...(v === "spend_years" ? { ticksuffix: " yrs" } : { tickprefix: "$", tickformat: "~s" }) };
+    Plotly.react(typChart, traces, {
+      paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", font: { family: "Inter, system-ui, sans-serif", size: 12, color: text },
+      margin: { l: 56, r: 12, t: 12, b: legendH }, hovermode: "x unified",
+      hoverlabel: { bgcolor: css("--surface-1"), bordercolor: css("--border"), font: { color: css("--text-primary") } },
+      legend: { orientation: "h", x: 0, y: 0, yanchor: "bottom", yref: "container", font: { size: 12 } },
+      xaxis: { color: text, gridcolor: grid, showgrid: false, zeroline: false, range: [SV[0] - 1, years.at(-1) + 1] },
+      yaxis,
+    }, { responsive: true, displayModeBar: false });
+    const unit = { nominal: "in each year's dollars", real_cpi: `in ${base} dollars, adjusted with CPI-U`, real_pce: `in ${base} dollars, adjusted with the PCE price index`,
+                   spend_years: "in years of average consumer spending per household" }[v];
+    document.getElementById("typ-sub").textContent =
+      `Net worth per household, ${unit}${ageOn() ? ", all ages" : ""}.${state.view === "share" ? " (A single household has no share of all wealth, so the Share view shows CPI-U dollars here.)" : ""} ` +
+      `Solid: the Census Bureau's Survey of Income and Program Participation (SIPP), yearly ${SIPP.years[0]}–${SIPP.years.at(-1)}. Dotted: the Fed's Survey of Consumer Finances (SCF), every three years. ` +
+      `Thin line: the Fed's national accounts, all household net worth divided by the number of households. Census publishes its mean only for households below the 99th percentile of net worth, so the SCF's mean is shown both that way and in full.`;
+    // Table: the latest year both surveys cover.
+    const yc = SV.filter(y => SIPP.years.includes(y)).at(-1), iS = SIPP.years.indexOf(yc), iC = SV.indexOf(yc);
+    const cell = (d, y) => d == null ? "—" : fmt(typValue(d, y, v));
+    document.querySelector("#typ-table thead").innerHTML = `<tr><th>${yc}</th><th class="num">SIPP</th><th class="num">SCF</th><th class="num">National accounts</th></tr>`;
+    document.querySelector("#typ-table tbody").innerHTML = [
+      ["Median", SIPP.median[iS], scfNominal(TYP.median[iC], yc), null],
+      ["Mean, bottom 99%", SIPP.mean[iS], scfNominal(TYP.mean_below_p99[iC], yc), null],
+      ["Mean, all", null, scfNominal(TYP.mean[iC], yc), fedMean(yc)],
+    ].map(([label, a, b, c]) => `<tr><td>${label}</td><td class="num">${cell(a, yc)}</td><td class="num">${cell(b, yc)}</td><td class="num">${cell(c, yc)}</td></tr>`).join("");
+    const gapMed = SIPP.median[iS] / scfNominal(TYP.median[iC], yc) - 1, gapMean = SIPP.mean[iS] / scfNominal(TYP.mean_below_p99[iC], yc) - 1;
+    document.getElementById("typ-note").textContent =
+      `In ${yc} the SIPP's median is ${Math.round(Math.abs(gapMed) * 100)}% ${gapMed < 0 ? "below" : "above"} the SCF's, and its bottom-99% mean ${Math.round(Math.abs(gapMean) * 100)}% ${gapMean < 0 ? "below" : "above"}. ` +
+      `The SCF is built to measure wealth (it oversamples wealthy households and asks about every asset); the SIPP is a broader survey that leaves out pension-plan equity and home furnishings. ` +
+      `The SCF's full mean is close to the national accounts' average, but not equal: the accounts value some assets differently and include things neither survey asks about. ` +
+      `The SCF extract is in ${TYP.dollars_of} dollars (the Fed adjusts with its research CPI, CPI-U-RS); it's converted to each year's dollars here with CPI-U, which can differ by a few percent in early years.`;
+  }
+
   // The group's share of all wealth or income, for the dollar-view table; and the same for the top 0.1% / 0.01%.
   function groupValueShare(lo, hi, j) { const rows = M().share; let t = 0; for (let i = lo; i < hi; i++) { if (rows[i][j] == null) return null; t += rows[i][j]; } return t; }
   const extremeShare = (k2, j) => ageOn() ? null : W.top_detail[isInc() ? "income" : "wealth"][k2].share[j];
@@ -1682,11 +1798,11 @@
     const span = ys => { const out = []; for (const y of ys) { const r = out.at(-1); if (r && r[1] === y - 1) r[1] = y; else out.push([y, y]); }
                          return out.map(([a, b]) => a === b ? `${a}` : `${a}–${b}`).join(", "); };
     const wid = years.filter(y => W.tier[y] !== "extended_dfa"), lastWid = wid.at(-1);
-    const jevTag = ids => {
+    const jevTag = (ids, what = "the paper's own text") => {
       const rs = V && V.jev ? ids.map(id => V.jev.results.find(r => r.id === id)).filter(Boolean) : [];
       if (!rs.length) return "";
       const ok = rs.every(r => r.status === "pass");
-      return `<p class="muted">${ok ? "✓" : "△"} Jev checked ${rs.length === 1 ? "this summary" : `these ${rs.length} statements`} against the paper's own text${ok ? "" : " (not all passed; see the <a href='#checks' data-tab='checks'>Checks</a> tab)"}.</p>`;
+      return `<p class="muted">${ok ? "✓" : "△"} Jev checked ${rs.length === 1 ? "this summary" : `these ${rs.length} statements`} against ${what}${ok ? "" : " (not all passed; see the <a href='#checks' data-tab='checks'>Checks</a> tab)"}.</p>`;
     };
     // Top 1% of wealth: WID vs the Fed DFA and the SCF.
     const dfaYears = wid.filter(y => DFA[y]);
@@ -1701,9 +1817,16 @@
     const rows = [
       ["Top 1% share of wealth", "disputed", "Disputed",
        `<p>WID (this chart) is ${one(top1Gap.reduce((a, b) => a + b, 0) / top1Gap.length)} points above the Fed's Distributional Financial Accounts on average over ${dfaYears[0]}–${dfaYears.at(-1)} (range ${signed(Math.min(...top1Gap))} to ${signed(Math.max(...top1Gap))}), and ${(() => { const m = scfGap.reduce((a, b) => a + b, 0) / scfGap.length; return `${one(Math.abs(m))} points ${m >= 0 ? "above" : "below"}`; })()} the Survey of Consumer Finances on average in its ${SV.length} survey years (range ${signed(Math.min(...scfGap))} to ${signed(Math.max(...scfGap))}).</p>` +
-       `<p>Smith, Zidar and Zwick (2023) re-estimate top wealth from the same tax data with different assumptions about investment returns: the top 1% held 33.7% in 2016, against 36.6% in the Piketty, Saez and Zucman series that WID's figures come from (this chart, from WID's current revision: ${one(wealthGroupShare(2016, 99, 100))}%). They agree the top share has risen since the 1980s.</p>` +
+       `<p>Smith, Zidar and Zwick (2023) re-estimate top wealth from the same tax data with different assumptions about investment returns: the top 1% held 33.7% in 2016, against 36.6% in the Piketty, Saez and Zucman series that WID's figures come from (this chart, from WID's current revision: ${one(wealthGroupShare(2016, 99, 100))}%). They agree the top share has risen since the 1980s. Their full series is on the Trends tab (Source: WID + SZZ).</p>` +
        `<p class="muted">Part of the gap is what is ranked: WID ranks adults, with a couple's wealth split equally; the Fed and the survey rank households. ⚑ marks it in the year table and on the top 1% pillar.</p>` +
        jevTag(["szz_top1_lower", "szz_top1_rising", "control_szz_top1_fell"])],
+      ["A household's net worth: SIPP vs SCF", "disputed", "Surveys differ",
+       (() => {
+         const yc = SV.filter(y => SIPP.years.includes(y)).at(-1), iS = SIPP.years.indexOf(yc), iC = SV.indexOf(yc);
+         const k = n => `$${Math.round(n / 1000).toLocaleString()}K`, med = scfNominal(TYP.median[iC], yc), low = scfNominal(TYP.mean_below_p99[iC], yc);
+         return `<p>In ${yc} the Census Bureau's SIPP puts median household net worth at ${k(SIPP.median[iS])}, against ${k(med)} in the Fed's Survey of Consumer Finances; for households below the 99th percentile, the SIPP's mean is ${k(SIPP.mean[iS])} against the SCF's ${k(low)} (${Math.round((1 - SIPP.mean[iS] / low) * 100)}% lower).</p>` +
+           `<p class="muted">The SCF is built to measure wealth and oversamples wealthy households; the SIPP leaves out pension-plan equity and home furnishings, and Census publishes no mean for the top 1%. The page's survey breakdowns use the SCF. See the chart on the Trends tab.</p>`;
+       })() + jevTag(["sipp_networth", "sipp_household", "sipp_mean_bottom99", "control_sipp_mean_all"], "Census's own documentation")],
       ["Bottom 50% share of wealth", "disputed", "Disputed",
        negYears.length
          ? `<p>WID puts the bottom half below zero (owing more than it owns) in ${span(negYears)}. In those years the Fed DFA has the bottom half of households at ${one(Math.min(...negDfa))}% to ${one(Math.max(...negDfa))}% of wealth, and the survey at ${one(Math.min(...negScf))}% to ${one(Math.max(...negScf))}%.</p><p class="muted">The sources rank different units (adults vs households) and are built by different methods, so even the sign is in dispute.</p>`
@@ -1794,7 +1917,7 @@
     // Charts drawn while hidden have no width; resize them when their tab is shown.
     if (name === "explore") [chart, sliceChart].forEach(el => { try { Plotly.Plots.resize(el); } catch (e) {} });
     document.body.dataset.tab = name;
-    if (name === "trends") { [trendChart, txChart].forEach(el => { try { Plotly.Plots.resize(el); } catch (e) {} }); drawTrend(); drawTx(); }  // labels depend on width, 0 while hidden
+    if (name === "trends") { [trendChart, txChart, typChart].forEach(el => { try { Plotly.Plots.resize(el); } catch (e) {} }); drawTrend(); drawTx(); drawTyp(); }  // labels depend on width, 0 while hidden
     try { history.replaceState(null, "", name === "explore" ? location.pathname + location.search : `#${name}`); } catch (e) {}
   }
   document.querySelector(".tabs").addEventListener("click", e => { const b = e.target.closest("[role=tab]"); if (b) showTab(b.id.slice(4)); });

@@ -131,6 +131,30 @@
    "ok": true,
    "detail": "WID is on average +5.0 pp vs Fed DFA over 1989-2024 (adults vs households; expected)",
    "info": true
+  },
+  {
+   "check": "Smith\u2013Zidar\u2013Zwick shares copied exactly",
+   "ok": true,
+   "detail": "51 years 1966\u20132016 from TotalWealthShare.xlsx (Baseline); largest difference 0 pp; top 0.01% \u2264 0.1% \u2264 1% \u2264 10% and bottom 90% + top 10% = 100% every year",
+   "info": false
+  },
+  {
+   "check": "Census SIPP net worth copied exactly",
+   "ok": true,
+   "detail": "11 years 2014\u20132024 (Tables 1 and 5, Total row); largest difference $0; median below the bottom-99% mean every year; SIPP's household count is within 3.0% of the Census count (FRED TTLHH)",
+   "info": false
+  },
+  {
+   "check": "SCF 2022 median and mean match the Fed's published figures",
+   "ok": true,
+   "detail": "median $192,700 vs $192,900 published (-0.10%); mean $1,059,457 vs $1,063,700 (-0.40%). The Fed averages its five imputed copies one at a time; this pools them.",
+   "info": false
+  },
+  {
+   "check": "Cross-source: SIPP vs SCF, 2022",
+   "ok": true,
+   "detail": "median $176,500 (SIPP) vs $192,700 (SCF), -8%; mean below the 99th percentile $541,100 vs $694,573, -22%. The SCF oversamples wealthy households; SIPP isn't built to measure wealth at the top.",
+   "info": true
   }
  ],
  "jev": {
@@ -596,6 +620,156 @@
     "id": "control_szz_top1_fell",
     "source": "SmithZidarZwick_2023",
     "claim": "Smith, Zidar and Zwick find that the top 1% share of wealth fell between 1989 and 2016.",
+    "expect": "contradicts",
+    "verdict": "contradicts",
+    "confidence": 1.0,
+    "probabilities": {
+     "contradicts": 1.0,
+     "supports": 0.0,
+     "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": true
+   },
+   {
+    "id": "szz_unit",
+    "source": "SmithZidarZwick_2023_data",
+    "claim": "The series ranks individuals, with a tax unit's wealth split equally between its members, rather than households.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 0.99,
+    "probabilities": {
+     "not_addressed": 0.0,
+     "supports": 1.0,
+     "contradicts": 0.0
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "szz_columns",
+    "source": "SmithZidarZwick_2023_data",
+    "claim": "The baseline series gives shares of total wealth for the bottom 90%, top 10%, top 1%, top 0.1% and top 0.01%.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 0.86,
+    "probabilities": {
+     "not_addressed": 0.0,
+     "supports": 0.91,
+     "contradicts": 0.09
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "szz_years",
+    "source": "SmithZidarZwick_2023_data",
+    "claim": "The baseline series is annual, from 1966 to 2016.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 0.98,
+    "probabilities": {
+     "not_addressed": 0.0,
+     "supports": 0.99,
+     "contradicts": 0.01
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "control_szz_household",
+    "source": "SmithZidarZwick_2023_data",
+    "claim": "The series ranks households, the same unit as the Survey of Consumer Finances.",
+    "expect": "contradicts",
+    "verdict": "contradicts",
+    "confidence": 1.0,
+    "probabilities": {
+     "not_addressed": 0.0,
+     "supports": 0.0,
+     "contradicts": 1.0
+    },
+    "status": "pass",
+    "control": true
+   },
+   {
+    "id": "sipp_networth",
+    "source": "Census_SIPP_wealth",
+    "claim": "Household net worth is the value of assets owned minus debts owed, so it can be negative.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 1.0,
+    "probabilities": {
+     "contradicts": 0.0,
+     "supports": 1.0,
+     "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "sipp_household",
+    "source": "Census_SIPP_wealth",
+    "claim": "The unit is the household: the people living together in one housing unit, with group quarters left out.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 1.0,
+    "probabilities": {
+     "contradicts": 0.0,
+     "supports": 1.0,
+     "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "sipp_mean_bottom99",
+    "source": "Census_SIPP_wealth",
+    "claim": "The mean values in Table 5 are estimated only over households whose net worth is below the 99th percentile.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 0.97,
+    "probabilities": {
+     "contradicts": 0.02,
+     "supports": 0.98,
+     "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "sipp_median_2024",
+    "source": "Census_SIPP_wealth",
+    "claim": "Median household net worth in 2024 was $204,900.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 0.99,
+    "probabilities": {
+     "contradicts": 0.01,
+     "supports": 0.99,
+     "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "control_sipp_mean_all",
+    "source": "Census_SIPP_wealth",
+    "claim": "The published mean net worth includes every household, the wealthiest 1% among them.",
+    "expect": "contradicts",
+    "verdict": "contradicts",
+    "confidence": 0.97,
+    "probabilities": {
+     "contradicts": 0.98,
+     "supports": 0.0,
+     "not_addressed": 0.02
+    },
+    "status": "pass",
+    "control": true
+   },
+   {
+    "id": "control_sipp_furnishings",
+    "source": "Census_SIPP_wealth",
+    "claim": "Net worth includes the value of home furnishings.",
     "expect": "contradicts",
     "verdict": "contradicts",
     "confidence": 1.0,

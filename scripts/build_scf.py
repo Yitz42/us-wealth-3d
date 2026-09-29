@@ -144,6 +144,28 @@ def age_part(cell, lo, hi):
     return sum(v for a, v in zip(ages, cell[2]) if lo <= a <= hi) / SCALE
 
 
+def typical(year):
+    """Weighted median, mean, and mean below the 99th percentile of household net worth for one survey,
+    in the survey file's dollars (the latest survey's). The median is the net worth where cumulative
+    weight first reaches half; the bottom-99% mean (what the Census SIPP tables publish as a mean)
+    keeps households until cumulative weight reaches 99%."""
+    rows = []
+    with open(SCF / f"SCFP{year}.csv", newline="") as f:
+        for r in csv.DictReader(f):
+            rows.append((float(r["NETWORTH"]), float(r["WGT"])))
+    rows.sort()
+    total = sum(w for _, w in rows)
+    cum, median, low_sum, low_w = 0.0, None, 0.0, 0.0
+    for nw, w in rows:
+        take = min(w, max(0.0, 0.99 * total - cum))  # the row that crosses 99% counts in part
+        low_sum += nw * take
+        low_w += take
+        cum += w
+        if median is None and cum >= total / 2:
+            median = nw
+    return median, sum(nw * w for nw, w in rows) / total, low_sum / low_w
+
+
 def main():
     out = {
         "surveys": SURVEYS,
@@ -162,7 +184,15 @@ def main():
         "households": {},
         # age_cells[wealth|income][survey index][bin] = [ages, share of the bin's sum, share of its households]
         "age_cells": {},
+        # Median and mean household net worth per survey, in dollars of the latest survey (dollars_of).
+        "typical": {"dollars_of": SURVEYS[-1], "median": [], "mean": [], "mean_below_p99": []},
     }
+    for year in SURVEYS:
+        med, mean, low = typical(year)
+        out["typical"]["median"].append(round(med))
+        out["typical"]["mean"].append(round(mean))
+        out["typical"]["mean_below_p99"].append(round(low))
+        print(f"{year}: median ${med:,.0f}, mean ${mean:,.0f}, bottom-99% mean ${low:,.0f} ({SURVEYS[-1]} dollars)")
     keys = ["n", "w", "networth", "income", "debt", "assets", "adults", "part_women", "part_men"] +[k for k, _ in GENDER + RACE + OCCUPATION + WORK + AGES] + [k for k, _, _ in HOLDINGS]
     assert len(keys) == len(set(keys)), "category keys must be unique across groups"
     age_keys = [a for a, _ in AGES]
