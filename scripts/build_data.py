@@ -285,6 +285,211 @@ def load_cbo():
     return out
 
 
+# --- WID before 1950: the Trends tab's four groups plus the top 0.1% and 0.01% -----------------------
+EARLY_START = 1913  # WID's yearly series start here (earlier values are decade-by-decade estimates)
+EARLY_PCT = {"bottom50": "p0p50", "middle40": "p50p90", "top10": "p90p100", "top1": "p99p100",
+             "top01": "p99.9p100", "top001": "p99.99p100"}
+EARLY_VARS = {"wealth": ("shwealj992", "ahwealj992"), "income": ("sptincj992", "aptincj992"),
+              "post_income": ("sdiincj992", "adiincj992")}
+
+
+def build_early(wid_px, cpi, cpi_base, pce_price_a, pce_p_base, pce_a, wid_adults):
+    """{years, tier[measure][year], measure: {group: {view: [...]}}} for 1913-1949. Next 9% = top 10% minus
+    top 1% (shares; averages weighted 10:1). Views need the price or spending series for that year, else null."""
+    wanted = {v for pair in EARLY_VARS.values() for v in pair}
+    pct = set(EARLY_PCT.values())
+    raw, quality = defaultdict(dict), defaultdict(dict)
+    with open(RAW / "WID_data_US.csv") as f:
+        for row in csv.DictReader(f, delimiter=";"):
+            y = int(row["year"])
+            if row["variable"] in wanted and row["percentile"] in pct and EARLY_START <= y < START_YEAR:
+                raw[(row["variable"], row["percentile"])][y] = float(row["value"])
+                if row["percentile"] == "p99p100" and row["data_quality"]:
+                    quality[row["variable"]][y] = row["data_quality"]
+    ys = list(range(EARLY_START, START_YEAR))
+    out = {"years": ys, "tier": {}}
+    for m, (svar, avar) in EARLY_VARS.items():
+        out["tier"][m] = {str(y): "measured" if quality[svar].get(y) in ("4", "5") else "wid_imputed" for y in ys}
+        groups = {}
+        for g in ("bottom50", "middle40", "next9", "top1", "top01", "top001"):
+            views = {k: [None] * len(ys) for k in ("share", "nominal", "real_cpi", "real_pce", "spend_years")}
+            for i, y in enumerate(ys):
+                if g == "next9":
+                    s10, s1 = raw[(svar, "p90p100")].get(y), raw[(svar, "p99p100")].get(y)
+                    a10, a1 = raw[(avar, "p90p100")].get(y), raw[(avar, "p99p100")].get(y)
+                    sh = None if s10 is None or s1 is None else s10 - s1
+                    avg = None if a10 is None or a1 is None else (a10 * 10 - a1) / 9
+                else:
+                    sh, avg = raw[(svar, EARLY_PCT[g])].get(y), raw[(avar, EARLY_PCT[g])].get(y)
+                if sh is not None:
+                    views["share"][i] = round(sh * 100, 4)
+                if avg is None or y not in wid_px:
+                    continue
+                nom = avg * wid_px[y]  # WID's constant-2025 average per adult, in that year's dollars
+                views["nominal"][i] = round(nom)
+                if y in cpi:
+                    views["real_cpi"][i] = round(nom * cpi_base / cpi[y][0])
+                if y in pce_price_a:
+                    views["real_pce"][i] = round(nom * pce_p_base / pce_price_a[y])
+                if y in pce_a and y in wid_adults:
+                    views["spend_years"][i] = round(nom / (pce_a[y] * 1e9 / wid_adults[y]), 3)
+            groups[g] = views
+        out[m] = groups
+    return out
+
+
+# --- The Fed DFA's other breakdowns (year-end quarter, 1989 on) -----------------------------------
+DFA_ASSETS = ["Real estate", "Consumer durables", "Corporate equities and mutual fund shares", "DB pension entitlements",
+              "DC pension entitlements", "Unincorporated businesses", "Other assets"]
+DFA_DEBTS = ["Home mortgages", "Consumer credit", "Other liabilities"]
+DFA_DIMENSIONS = {  # dimension: file stem, categories in display order
+    "race": ("race", ["White", "Black", "Hispanic", "Other"]),
+    "age": ("age", ["ageunder40", "age40to54", "age55to69", "age70plus"]),
+    "education": ("education", ["NoHS", "HS", "SomeCollege", "College"]),
+    "generation": ("generation", ["Silent", "BabyBoom", "GenX", "Millennial"]),
+    "income": ("income", ["pct00to20", "pct20to40", "pct40to60", "pct60to80", "pct80to99", "pct99to100"]),
+}
+
+
+def read_dfa(stem, detail=False):
+    """{(year, quarter): {category: {column: $ millions}}} from one DFA levels file."""
+    out = defaultdict(dict)
+    with open(RAW / "dfa" / f"dfa-{stem}-levels{'-detail' if detail else ''}.csv", newline="") as f:
+        for r in csv.DictReader(f):
+            y, q = r["Date"].split(":Q")
+            out[(int(y), int(q))][r["Category"]] = {k: float(v) for k, v in r.items() if k not in ("Date", "Category") and v not in ("", None)}
+    return out
+
+
+def build_dfa_breakdowns(years, macro, cpi_base, pce_p_base):
+    def views(nominal, y):
+        m = macro[y]
+        return {"nominal": round(nominal), "real_cpi": round(nominal * cpi_base / m["cpi_u"]),
+                "real_pce": round(nominal * pce_p_base / m["pce_price_index"]), "spend_years": round(nominal / (m["pce_total"] / m["households"]), 3)}
+
+    out = {"quarter": {}, "holdings": {"assets": DFA_ASSETS, "debts": DFA_DEBTS, "groups": {}}, "dimensions": {}}
+    # What each wealth group holds: dollars ($ millions, nominal) per asset and debt category.
+    nw = read_dfa("networth")
+    for g in ("Bottom50", "Next40", "Next9", "RemainingTop1", "TopPt1"):
+        out["holdings"]["groups"][g] = {c: [None] * len(years) for c in DFA_ASSETS + DFA_DEBTS + ["Net worth", "Assets", "Liabilities"]}
+    for j, y in enumerate(years):
+        q = year_end(nw, y)
+        if q is None:
+            continue
+        out["quarter"][str(y)] = f"{q[0]}:Q{q[1]}"
+        for g, cols in out["holdings"]["groups"].items():
+            for c in cols:
+                cols[c][j] = nw[q][g][c]
+    # Wealth by demographic group: share of all net worth and average per household (the detail files' household count).
+    for dim, (stem, cats) in DFA_DIMENSIONS.items():
+        lv = read_dfa(stem, detail=True)
+        d = {"categories": cats, "share": {c: [None] * len(years) for c in cats}, "households": {c: [None] * len(years) for c in cats},
+             **{v: {c: [None] * len(years) for c in cats} for v in ("nominal", "real_cpi", "real_pce", "spend_years")}}
+        for j, y in enumerate(years):
+            q = year_end(lv, y)
+            if q is None:
+                continue
+            total = sum(lv[q][c]["Net worth"] for c in lv[q])
+            for c in cats:
+                row = lv[q].get(c)
+                if row is None:  # a generation not yet (or no longer) in the data
+                    continue
+                d["share"][c][j] = round(row["Net worth"] / total * 100, 3)
+                d["households"][c][j] = row["Household count"]
+                if row["Household count"]:
+                    for k, v in views(row["Net worth"] * 1e6 / row["Household count"], y).items():
+                        d[k][c][j] = v
+        out["dimensions"][dim] = d
+    return out
+
+
+# --- Census CPS money income by household fifth (Historical Income Tables H-2 and H-3) --------------
+def census_rows(path, first_col):
+    """Rows of a Census historical table as (year, footnote, [values]); a table can repeat a year
+    where Census changed method (2013, 2017): the first row is the newer method."""
+    from xlsx import read_xlsx
+    rows = []
+    for _, c in next(iter(read_xlsx(path).values())):
+        a = str(c.get("A") or "").strip()
+        m = __import__("re").match(r"^(\d{4})(?:\s*\((\d+)\))?$", a)
+        if m:
+            rows.append((int(m.group(1)), m.group(2), [c.get(col) for col in first_col]))
+        elif rows and a and not m and "dollars" in a.lower():
+            break  # H-3 repeats the table in constant dollars below; keep the current-dollar block
+    return rows
+
+
+def load_census_income():
+    h2 = census_rows(RAW / "census" / "h02ar.xlsx", "BCDEFGH")
+    h3 = census_rows(RAW / "census" / "h03ar.xlsx", "BCDEFG")
+    keys = ["lowest", "second", "third", "fourth", "highest", "top5"]
+    shares, means, households, seen = {}, {}, {}, set()
+    breaks = sorted({y for y, _, _ in h2 if [r[0] for r in h2].count(y) > 1})
+    for y, _, v in h2:
+        if y in seen:
+            continue
+        seen.add(y)
+        households[y] = float(v[0]) * 1000
+        shares[y] = [float(x) for x in v[1:]]
+    seen = set()
+    for y, _, v in h3:
+        if y in seen:
+            continue
+        seen.add(y)
+        means[y] = [float(x) for x in v]
+    ys = sorted(shares)
+    return {"years": ys, "groups": keys, "method_breaks": breaks, "households": [households[y] for y in ys],
+            "share": {k: [shares[y][i] for y in ys] for i, k in enumerate(keys)},
+            "mean": {k: [means[y][i] for y in ys] for i, k in enumerate(keys)}}
+
+
+# --- BLS Consumer Expenditure Survey by income fifth (BLS public API; see fetch_data.py) -----------
+BLS_ITEMS = {"TOTALEXP": "spending", "INCBEFTX": "income_before_taxes", "INCAFTTX": "income_after_taxes"}
+BLS_GROUPS = {"LB0101": "all", "LB0102": "lowest", "LB0103": "second", "LB0104": "third", "LB0105": "fourth", "LB0106": "highest"}
+
+
+def load_bls_ce():
+    raw = json.loads((RAW / "bls" / "ce_quintiles.json").read_text())
+    ys = sorted({int(y) for s in raw.values() for y in s})
+    out = {"years": ys, "series": {}}
+    for item, name in BLS_ITEMS.items():
+        out[name] = {}
+        for code, g in BLS_GROUPS.items():
+            sid = f"CXU{item}{code}M"
+            out["series"][f"{name}.{g}"] = sid
+            out[name][g] = [float(raw[sid][str(y)]) if str(y) in raw[sid] else None for y in ys]
+    return out
+
+
+# --- Census SIPP by state (2024) ---------------------------------------------------------------------
+STATE_ABBR = {"Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR", "California": "CA", "Colorado": "CO",
+    "Connecticut": "CT", "Delaware": "DE", "District of Columbia": "DC", "Florida": "FL", "Georgia": "GA", "Hawaii": "HI",
+    "Idaho": "ID", "Illinois": "IL", "Indiana": "IN", "Iowa": "IA", "Kansas": "KS", "Kentucky": "KY", "Louisiana": "LA",
+    "Maine": "ME", "Maryland": "MD", "Massachusetts": "MA", "Michigan": "MI", "Minnesota": "MN", "Mississippi": "MS",
+    "Missouri": "MO", "Montana": "MT", "Nebraska": "NE", "Nevada": "NV", "New Hampshire": "NH", "New Jersey": "NJ",
+    "New Mexico": "NM", "New York": "NY", "North Carolina": "NC", "North Dakota": "ND", "Ohio": "OH", "Oklahoma": "OK",
+    "Oregon": "OR", "Pennsylvania": "PA", "Rhode Island": "RI", "South Carolina": "SC", "South Dakota": "SD",
+    "Tennessee": "TN", "Texas": "TX", "Utah": "UT", "Vermont": "VT", "Virginia": "VA", "Washington": "WA",
+    "West Virginia": "WV", "Wisconsin": "WI", "Wyoming": "WY"}
+
+
+def load_sipp_states():
+    f = max(glob.glob(str(RAW / "sipp" / "state_wealth_tables_dy*.xlsx")))
+    year = int(f[-9:-5])
+    sh = read_xlsx(f)
+    def col(table, want):
+        rows = {str(c.get("A") or "").strip(): c.get("B") for _, c in sh[table]}
+        return {STATE_ABBR[k]: (float(v) if v not in (None, "", "(B)") and str(v).replace(".", "").isdigit() else None)
+                for k, v in rows.items() if k in STATE_ABBR}
+    med, mean, hh = col("Table 1", "median"), col("Table 5", "mean"), col("Table 3", "households")
+    t1, t5 = dict(sh["Table 1"]), dict(sh["Table 5"])
+    assert t1[3]["B"] == t5[3]["B"] == "Net Worth", f
+    assert len(med) == 51, (len(med), f)
+    return {"year": year, "states": sorted(med), "median": [med[s] for s in sorted(med)], "mean": [mean[s] for s in sorted(med)],
+            "households": [hh[s] * 1000 if hh[s] else None for s in sorted(med)],
+            "us_median": float(t1[5]["B"]), "us_mean": float(t5[5]["B"])}
+
+
 def main():
     wid, wid_quality = load_wid()
     wid_last = max(y for y, s in wid.items() if len(s) == 100)
@@ -426,45 +631,52 @@ def main():
         share.append(r_share); nominal.append(r_nom); real_cpi.append(r_cpi)
         real_pce.append(r_pce); spend_years.append(r_sp)
 
-    # --- Pre-tax income (WID sptincj992): same 1% bins, 1950 to WID's last year ---------
-    # Dollar views use WID's own average pre-tax income per adult (aptincj992).
-    inc, inc_q = load_wid("sptincj992")
-    avg_i = load_wid_averages("aptincj992")
-    inc_years = sorted(y for y in years if y in inc and len(inc[y]) == 100 and y in avg_i and y in wid_px)
-    inc_meas = {k: [[None] * len(years) for _ in BINS] for k in ("share", "nominal", "real_cpi", "real_pce", "spend_years")}
-    inc_est = [[0] * len(years) for _ in BINS]
-    inc_tier = {}
-    for y in inc_years:
-        j, m = years.index(y), macro[y]
-        # WID never publishes a negative income share, so estimates stay at or above zero
-        # (wealth can be negative: WID publishes net-debt bins).
-        filled, g = fill_rounded_zeros([inc[y][b] for b in BINS], floor=0.0)
-        inc_tier[str(y)] = "measured" if inc_q.get(y) == "5" else "wid_imputed"
-        for i, s_ in enumerate(filled):
-            per_ad = avg_i[y][BINS[i]] * wid_px[y]  # WID's pre-tax income per adult, in that year's dollars
-            inc_meas["share"][i][j] = round(s_ * 100, 4)
-            inc_meas["nominal"][i][j] = round(per_ad)
-            inc_meas["real_cpi"][i][j] = round(per_ad * cpi_base / m["cpi_u"])
-            inc_meas["real_pce"][i][j] = round(per_ad * pce_p_base / m["pce_price_index"])
-            inc_meas["spend_years"][i][j] = round(per_ad / (m["pce_total"] / wid_adults[y]), 3)
-            inc_est[i][j] = int(i in g)
+    # --- Income (WID): same 1% bins, 1950 to WID's last year ---------------------------
+    # Pre-tax national income (sptincj992) and post-tax national income (sdiincj992, after taxes and
+    # all transfers). Dollar views use WID's own averages per adult (aptincj992, adiincj992).
+    def build_income(share_var, avg_var):
+        inc, inc_q = load_wid(share_var)
+        avg_i = load_wid_averages(avg_var)
+        inc_years = sorted(y for y in years if y in inc and len(inc[y]) == 100 and y in avg_i and y in wid_px)
+        inc_meas = {k: [[None] * len(years) for _ in BINS] for k in ("share", "nominal", "real_cpi", "real_pce", "spend_years")}
+        inc_est = [[0] * len(years) for _ in BINS]
+        inc_tier = {}
+        for y in inc_years:
+            j, m = years.index(y), macro[y]
+            # WID never publishes a negative income share, so estimates stay at or above zero
+            # (wealth can be negative: WID publishes net-debt bins).
+            filled, g = fill_rounded_zeros([inc[y][b] for b in BINS], floor=0.0)
+            inc_tier[str(y)] = "measured" if inc_q.get(y) == "5" else "wid_imputed"
+            for i, s_ in enumerate(filled):
+                per_ad = avg_i[y][BINS[i]] * wid_px[y]  # WID's income per adult, in that year's dollars
+                inc_meas["share"][i][j] = round(s_ * 100, 4)
+                inc_meas["nominal"][i][j] = round(per_ad)
+                inc_meas["real_cpi"][i][j] = round(per_ad * cpi_base / m["cpi_u"])
+                inc_meas["real_pce"][i][j] = round(per_ad * pce_p_base / m["pce_price_index"])
+                inc_meas["spend_years"][i][j] = round(per_ad / (m["pce_total"] / wid_adults[y]), 3)
+                inc_est[i][j] = int(i in g)
+        return {"years": inc_years, "tier": inc_tier, "estimated": inc_est, "measures": inc_meas}, avg_i
+
+    income, avg_i = build_income("sptincj992", "aptincj992")
+    income_post, avg_d = build_income("sdiincj992", "adiincj992")
+    inc_years, inc_meas, inc_est = income["years"], income["measures"], income["estimated"]
     # --- Top 0.1% and top 0.01% (WID's own g-percentiles), for the Trends lines --------
     # Shares as published; dollar views divide by the households in the group (0.1% or 0.01% of all).
     TOP = {"top01": ("p99.9p100", 0.001), "top001": ("p99.99p100", 0.0001)}
-    top_raw = {m: defaultdict(dict) for m in ("wealth", "income")}
+    top_raw = {m: defaultdict(dict) for m in ("wealth", "income", "post_income")}
     with open(RAW / "WID_data_US.csv") as f:
         for row in csv.DictReader(f, delimiter=";"):
-            m = {"shwealj992": "wealth", "sptincj992": "income"}.get(row["variable"])
+            m = {"shwealj992": "wealth", "sptincj992": "income", "sdiincj992": "post_income"}.get(row["variable"])
             if m and row["percentile"] in ("p99.9p100", "p99.99p100") and int(row["year"]) >= START_YEAR:
                 top_raw[m][row["percentile"]][int(row["year"])] = float(row["value"])
     top_detail = {}
-    for m in ("wealth", "income"):
+    for m in ("wealth", "income", "post_income"):
         top_detail[m] = {}
         for key, (pc, frac) in TOP.items():
             views = {k: [None] * len(years) for k in ("share", "nominal", "real_cpi", "real_pce", "spend_years")}
             for j, y in enumerate(years):
                 s_ = top_raw[m][pc].get(y)
-                a = (avg_w if m == "wealth" else avg_i).get(y, {}).get(pc)
+                a = {"wealth": avg_w, "income": avg_i, "post_income": avg_d}[m].get(y, {}).get(pc)
                 if s_ is None or a is None or y not in wid_px:
                     continue
                 mm = macro[y]
@@ -505,7 +717,8 @@ def main():
 
     szz, sipp, cbo = load_szz(), load_sipp(), load_cbo()
 
-    income = {"years": inc_years, "tier": inc_tier, "estimated": inc_est, "measures": inc_meas}
+    early = build_early(wid_px, cpi, cpi_base, pce_price_a, pce_p_base, pce_a, wid_adults)
+    dfa_breakdowns = build_dfa_breakdowns(years, macro, cpi_base, pce_p_base)
 
     # --- Women and men: estimated 1% bins, 1962-2019 -------------------------------------
     g_shares, g_avg, g_pop = load_gender()
@@ -557,6 +770,18 @@ def main():
             "spend_years": spend_years,
         },
         "income": income,
+        # WID post-tax national income (after taxes and transfers), the same 1% bins; the page's "Post-tax income" measure.
+        "income_post": income_post,
+        # WID's four groups and top 0.1% / 0.01% for 1913-1949, for the Trends tab's "From 1913" option.
+        "early": early,
+        # The Fed DFA: what each wealth group holds, and wealth by race, age, education, generation and income group.
+        "dfa_breakdowns": dfa_breakdowns,
+        # Census CPS money income by household fifth and top 5% (Tables H-2, H-3), 1967 on.
+        "census_income": load_census_income(),
+        # BLS Consumer Expenditure Survey by income fifth: spending, income before and after taxes, 1984 on.
+        "bls_ce": load_bls_ce(),
+        # Census SIPP median and mean household net worth by state.
+        "sipp_states": load_sipp_states(),
         # The Fed DFA's wealth by group (bottom50, middle40, next9, top1, top01) in every view, 1989 on.
         "fed_detail": fed_detail,
         # Top 0.1% ("top01") and top 0.01% ("top001") by measure and view; null where WID has no value.

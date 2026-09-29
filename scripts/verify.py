@@ -68,6 +68,9 @@ CLAIMS = {
         ("scf_sex", "supports", "The sex recorded for a household is the sex of its reference person."),
         ("control_scf_sex_both", "contradicts", "The sex recorded for a household is the sex of every adult in it."),
         ("scf_age", "supports", "The age recorded for a household is the age of its reference person."),
+        ("scf_education", "supports",
+         "Education groups for the reference person are: no high school diploma or GED; high school diploma or GED; some college or an associate degree; and a bachelor's degree or higher."),
+        ("scf_homeownership", "supports", "Households are classed as owning their home (a house, condo, mobile home, farm or similar) or otherwise."),
         # The page regroups AGE into the Fed DFA's ranges, which needs AGE to be a plain number, not a class code.
         ("scf_age_numeric", "supports", "AGE holds the age itself as a number; the survey's age classes are then cut from it at 35, 45, 55, 65 and 75."),
         ("control_scf_age_oldest", "contradicts", "The age recorded for a household is the age of its oldest member."),
@@ -104,6 +107,23 @@ CLAIMS = {
         ("sipp_median_2024", "supports", "Median household net worth in 2024 was $204,900."),
         ("control_sipp_mean_all", "contradicts", "The published mean net worth includes every household, the wealthiest 1% among them."),
         ("control_sipp_furnishings", "contradicts", "Net worth includes the value of home furnishings."),
+    ],
+    "WID_sdiincj992": [
+        ("wid_post_definition", "supports", "Post-tax national income is primary income from all sectors, private and public, minus taxes."),
+        ("wid_post_population", "supports", "The ranked population is adults over 20, with income split equally between members of a couple."),
+        ("control_wid_post_pretax", "contradicts", "Post-tax national income is measured before any taxes are subtracted."),
+    ],
+    "Census_CPS_income": [
+        ("census_shares", "supports",
+         "The table gives the share of aggregate household income received by each household income fifth and the top 5 percent, 1967 to 2025."),
+        ("census_cps", "supports", "The figures come from the Current Population Survey's Annual Social and Economic Supplement."),
+        ("control_census_wealth", "contradicts", "The table gives the share of household wealth held by each fifth of households."),
+    ],
+    "DFA_groups": [
+        ("dfa_generations", "supports",
+         "Generations are defined by birth year: Silent and earlier before 1946, Baby Boomers 1946 to 1964, Generation X 1965 to 1980, and Millennials 1981 or later."),
+        ("dfa_household_count", "supports", "The demographic files give each category's holdings in millions of dollars together with a household count."),
+        ("control_dfa_millennials", "contradicts", "Millennials are households born in 1990 or later."),
     ],
     "CBO_household_income": [
         ("cbo_ranking", "supports", "Households are ranked by their income before transfers and taxes, adjusted for household size."),
@@ -440,6 +460,7 @@ SCF_2022_PUBLISHED = {"median": 192_900, "mean": 1_063_700}
 def other_source_checks(w):
     """Smith-Zidar-Zwick shares, Census SIPP net worth, and the SCF medians and means, re-read from the raw files."""
     from xlsx import read_xlsx
+    BIN_SET = {f"p{i}p{i + 1}" for i in range(100)}
     checks = []
 
     def record(name, ok, detail, info=False):
@@ -521,6 +542,113 @@ def other_source_checks(w):
            f"WID's pre-tax national income share of the top 1% is on average {sum(gaps) / len(gaps):+.1f} pp vs CBO's income before transfers and taxes "
            f"over {wj[0][0]}–{wj[-1][0]} (range {min(gaps):+.1f} to {max(gaps):+.1f}): WID ranks adults and counts all national income, "
            f"CBO ranks people by household income adjusted for size, and counts household income rather than all national income", info=True)
+
+    # WID post-tax income: shares copied from WID (except estimated zeros), dollar values from WID's averages.
+    raw_sh, raw_avg, px = defaultdict(dict), defaultdict(dict), {}
+    with open(RAW / "WID_data_US.csv") as f:
+        for r in csv.DictReader(f, delimiter=";"):
+            if r["variable"] in ("sdiincj992", "adiincj992") and r["percentile"] in BIN_SET:
+                (raw_sh if r["variable"] == "sdiincj992" else raw_avg)[int(r["year"])][r["percentile"]] = float(r["value"])
+            elif r["variable"] == "inyixxi999" and r["percentile"] == "p0p100":
+                px[int(r["year"])] = float(r["value"])
+    ip = w["income_post"]
+    worst_s, worst_d, n = 0.0, 0.0, 0
+    for y in ip["years"]:
+        j = years.index(y)
+        for i in range(100):
+            b = f"p{i}p{i + 1}"
+            if not ip["estimated"][i][j]:
+                worst_s = max(worst_s, abs(ip["measures"]["share"][i][j] - raw_sh[y][b] * 100))
+            worst_d = max(worst_d, abs(ip["measures"]["nominal"][i][j] - raw_avg[y][b] * px[y]))
+            n += 1
+    sums = [sum(ip["measures"]["share"][i][years.index(y)] for i in range(100)) for y in ip["years"]]
+    record("Post-tax income: shares and dollars match WID", worst_s < 1e-3 and worst_d <= 0.5 and max(abs(t - 100) for t in sums) < 0.5,
+           f"{n:,} cells {ip['years'][0]}–{ip['years'][-1]} (sdiincj992, adiincj992 x inyixxi999): shares within {worst_s:.4f} pp, dollars within ${worst_d:.2f}; "
+           f"each year's 100 bins sum to 100% within {max(abs(t - 100) for t in sums):.2f} pp; {sum(map(sum, ip['estimated']))} rounded-zero cells estimated")
+    pre = w["income"]["measures"]["share"]
+    below = [y for y in ip["years"] if ip["measures"]["share"][99][years.index(y)] <= pre[99][years.index(y)]]
+    record("Cross-source: WID top 1% income, pre-tax vs post-tax", True,
+           f"post-tax share is at or below pre-tax in {len(below)} of {len(ip['years'])} years; "
+           f"{ip['years'][-1]}: {pre[99][years.index(ip['years'][-1])]:.1f}% pre-tax, {ip['measures']['share'][99][years.index(ip['years'][-1])]:.1f}% post-tax", info=True)
+
+    # WID before 1950: shares copied, next 9% = top 10% - top 1%, groups add to 100%.
+    e = w["early"]
+    worst, worst_sum = 0.0, 0.0
+    for m, (svar, _) in {"wealth": ("shwealj992", 0), "income": ("sptincj992", 0), "post_income": ("sdiincj992", 0)}.items():
+        want = defaultdict(dict)
+        with open(RAW / "WID_data_US.csv") as f:
+            for r in csv.DictReader(f, delimiter=";"):
+                if r["variable"] == svar and int(r["year"]) in e["years"] and r["percentile"] in ("p0p50", "p50p90", "p90p100", "p99p100"):
+                    want[int(r["year"])][r["percentile"]] = float(r["value"]) * 100
+        for i, y in enumerate(e["years"]):
+            g = {k: e[m][k]["share"][i] for k in ("bottom50", "middle40", "next9", "top1")}
+            worst = max(worst, abs(g["bottom50"] - want[y]["p0p50"]), abs(g["middle40"] - want[y]["p50p90"]), abs(g["top1"] - want[y]["p99p100"]),
+                        abs(g["next9"] - (want[y]["p90p100"] - want[y]["p99p100"])))
+            worst_sum = max(worst_sum, abs(sum(g.values()) - 100))
+    record("1913–1949: WID group shares copied exactly", worst < 1e-3 and worst_sum < 0.5,
+           f"{len(e['years'])} years x wealth, pre-tax and post-tax income; largest difference {worst:.4f} pp; next 9% = top 10% minus top 1%; "
+           f"the four groups sum to 100% within {worst_sum:.2f} pp")
+
+    # Fed DFA breakdowns: each dimension's categories add up to all household net worth; holdings balance.
+    d = w["dfa_breakdowns"]
+    worst_share, worst_bal = 0.0, 0.0
+    for dim, v in d["dimensions"].items():
+        for j in range(len(years)):
+            vals = [v["share"][c][j] for c in v["categories"] if v["share"][c][j] is not None]
+            if vals:
+                worst_share = max(worst_share, abs(sum(vals) - 100))
+    for g, v in d["holdings"]["groups"].items():
+        for j in range(len(years)):
+            if v["Net worth"][j] is None:
+                continue
+            worst_bal = max(worst_bal, abs(sum(v[c][j] for c in d["holdings"]["assets"]) - v["Assets"][j]) / v["Assets"][j],
+                            abs(v["Assets"][j] - v["Liabilities"][j] - v["Net worth"][j]) / v["Assets"][j])
+    record("Fed DFA breakdowns add up", worst_share < 0.05 and worst_bal < 0.001,
+           f"race, age, education, generation and income groups each sum to 100% of household net worth within {worst_share:.3f} pp "
+           f"({len(d['quarter'])} year-end quarters); for every wealth group, the asset categories sum to total assets and assets minus debts "
+           f"equal net worth within {worst_bal:.3%}")
+
+    # Census CPS income: values re-read, fifths add to 100%.
+    ci = w["census_income"]
+    rows = read_xlsx(RAW / "census" / "h02ar.xlsx")
+    first = {}
+    for _, c in next(iter(rows.values())):
+        a = str(c.get("A") or "").strip()
+        if a[:4].isdigit() and int(a[:4]) not in first:
+            first[int(a[:4])] = [float(c[k]) for k in "CDEFGH"]
+    worst = max(abs(ci["share"][k][i] - first[y][n]) for i, y in enumerate(ci["years"]) for n, k in enumerate(ci["groups"]))
+    fifths = max(abs(sum(ci["share"][k][i] for k in ci["groups"][:5]) - 100) for i in range(len(ci["years"])))
+    order = all(ci["mean"]["lowest"][i] < ci["mean"]["second"][i] < ci["mean"]["third"][i] < ci["mean"]["fourth"][i] < ci["mean"]["highest"][i] < ci["mean"]["top5"][i]
+                for i in range(len(ci["years"])))
+    record("Census household income (CPS) copied and consistent", worst == 0 and fifths <= 0.3 and order,
+           f"{len(ci['years'])} years {ci['years'][0]}–{ci['years'][-1]} from Table H-2 (the newer-method row where a year repeats: {ci['method_breaks']}); "
+           f"fifths sum to 100% within {fifths:.1f} pp (rounding); mean income rises from the lowest fifth to the top 5% in every year (Table H-3)")
+
+    # BLS Consumer Expenditure Survey: the stored values are the API's; the all-households mean is about the average of the fifths.
+    b = w["bls_ce"]
+    api = json.loads((RAW / "bls" / "ce_quintiles.json").read_text())
+    worst = max(abs((b[name][g][i] or 0) - float(api[b["series"][f"{name}.{g}"]].get(str(y), 0)))
+                for name in ("spending", "income_before_taxes", "income_after_taxes") for g in b[name] for i, y in enumerate(b["years"]))
+    # Before 2004 BLS formed the fifths from complete income reporters only, while "all" covers every
+    # consumer unit, so the fifths only average to the all-households mean from 2004 on.
+    gap = {y: sum(b["spending"][g][i] for g in ("lowest", "second", "third", "fourth", "highest")) / 5 / b["spending"]["all"][i] - 1
+           for i, y in enumerate(b["years"])}
+    avg_gap = max(abs(v) for y, v in gap.items() if y >= 2004)
+    early_gap = max(abs(v) for y, v in gap.items() if y < 2004)
+    record("BLS spending by income fifth matches the API", worst == 0 and avg_gap < 0.02,
+           f"{len(b['series'])} series, {b['years'][0]}–{b['years'][-1]} (average annual expenditures, income before and after taxes); "
+           f"from 2004 the all-households mean is the average of the five fifths within {avg_gap:.1%} (each fifth holds the same number of consumer units); "
+           f"before 2004 the fifths cover complete income reporters only, so they differ by up to {early_gap:.1%}")
+
+    # SIPP by state: re-read, household counts add up to the national count.
+    st = w["sipp_states"]
+    sh = read_xlsx(RAW / "sipp" / f"state_wealth_tables_dy{st['year']}.xlsx")
+    t3 = {str(c.get("A") or "").strip(): c.get("B") for _, c in sh["Table 3"]}
+    hh_sum = sum(h for h in st["households"] if h)
+    suppressed = [s_ for s_, m in zip(st["states"], st["median"]) if m is None]
+    record("Census SIPP by state copied", len(st["states"]) == 51 and abs(hh_sum / (float(t3["Total"]) * 1000) - 1) < 0.01,
+           f"{len(st['states'])} states and DC ({st['year']}); state household counts sum to {hh_sum / 1e6:.1f}M vs {float(t3['Total']) / 1e3:.1f}M in the Total row; "
+           f"no estimate published for {', '.join(suppressed)} (Census: sample too small)")
 
     # Information: the two surveys in the one year both cover (SCF dollars are 2022 dollars).
     i = sp["years"].index(2022)

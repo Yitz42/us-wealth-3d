@@ -81,6 +81,8 @@ def scf_doc():
         "work_status": around("work status categories for reference person", before=0, after=4),
         "occupation": around("occupation classification for reference person", before=0, after=3),
         "age": around("AGE=X14;", before=2, after=1),
+        "education": around("education of the reference person, and categorical variable", before=0, after=2),
+        "homeownership": around("homeownership class: 1=owns", before=0, after=1),
         "total_assets": around("ASSET=FIN+NFIN", before=1, after=0),
         "net_worth": around("NETWORTH=ASSET-DEBT", before=1, after=0),
     }
@@ -113,6 +115,39 @@ def sipp_doc():
 
 
 CBO_PAGE = "https://www.cbo.gov/publication/62761"
+SIPP_STATES = "2023/wealth-asset-ownership/state_wealth_tables_dy2024.xlsx"
+# Census CPS Historical Income Tables: H-2 shares and H-3 means of household income by fifth and top 5%.
+CENSUS_INCOME = "https://www2.census.gov/programs-surveys/cps/tables/time-series/historical-income-households"
+CENSUS_TABLES = ["h02ar.xlsx", "h03ar.xlsx"]
+# BLS Consumer Expenditure Survey, by quintile of income before taxes (LB0101 all, LB0102-06 lowest to highest),
+# through the BLS public API (bls.gov itself blocks scripted downloads). Version 1 needs no key: 10 years per request.
+BLS_API = "https://api.bls.gov/publicAPI/v1/timeseries/data/"
+BLS_SERIES = [f"CXU{item}{grp}M" for item in ("TOTALEXP", "INCBEFTX", "INCAFTTX") for grp in ("LB0101", "LB0102", "LB0103", "LB0104", "LB0105", "LB0106")]
+BLS_FIRST = 1984
+
+
+def bls_ce():
+    out = {}
+    last = int(subprocess.run(["date", "+%Y"], capture_output=True, text=True).stdout) - 1
+    for a in range(BLS_FIRST, last + 1, 10):
+        body = json.dumps({"seriesid": BLS_SERIES, "startyear": str(a), "endyear": str(min(a + 9, last))})
+        r = json.loads(subprocess.run(["curl", "-sSf", "-X", "POST", "-H", "Content-Type: application/json", "-d", body, BLS_API],
+                                      check=True, capture_output=True).stdout)
+        if r["status"] != "REQUEST_SUCCEEDED":
+            raise SystemExit(f"BLS API: {r['status']} {r.get('message')}")
+        for series in r["Results"]["series"]:
+            for d in series["data"]:
+                out.setdefault(series["seriesID"], {})[d["year"]] = d["value"]
+    return out
+
+
+def census_income_doc():
+    """Census's own title, universe and notes rows from the top of Table H-2."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from xlsx import read_xlsx
+    rows = [str(c.get("A")) for _, c in next(iter(read_xlsx(RAW / "census" / "h02ar.xlsx").values()))[:7] if c.get("A")]
+    return {"url": "https://www.census.gov/data/tables/time-series/demo/income-poverty/historical-income-households.html",
+            "title": rows[1], "notes": " ".join(rows[2:])}
 
 
 def cbo_doc():
@@ -122,6 +157,17 @@ def cbo_doc():
     rows = [v for _, c in read_xlsx(RAW / "cbo" / "62761-supp-data.xlsx")["Contents and Notes"] for v in c.values() if v and v != "None"]
     notes = rows[rows.index("Notes:") + 1:]
     return {"url": CBO_PAGE, "title": rows[0], "notes": " ".join(notes)}
+
+
+# The Fed's DFA download defines the wealth and asset columns but not the demographic groups; the
+# generation birth years are on its table page (kept in the code, like the passages below).
+DFA_GROUPS_DOC = {
+    "url": "https://www.federalreserve.gov/releases/z1/dataviz/dfa/distribute/table/",
+    "title": "Distributional Financial Accounts: Distribution of Household Wealth in the U.S. since 1989",
+    "generations": "Silent and Earlier=born before 1946, Baby Boomer=born 1946-1964, Gen X=born 1965-1980, and Millennial=born 1981 or later.",
+    "files": "dfa-race-levels-detail.csv, dfa-age-levels-detail.csv, dfa-education-levels-detail.csv, dfa-generation-levels-detail.csv and "
+             "dfa-income-levels-detail.csv give quarterly holdings in millions of dollars and a Household count for each category.",
+}
 
 
 # Research that disputes the page's main sources. The page summarizes each in its "Where sources
@@ -207,13 +253,25 @@ def main():
     (RAW / "sipp").mkdir(exist_ok=True)
     for year, path in SIPP_FILES.items():
         (RAW / "sipp" / f"wealth_tables_dy{year}.xlsx").write_bytes(get(f"{SIPP_TABLES}/{path}"))
+    (RAW / "sipp" / "state_wealth_tables_dy2024.xlsx").write_bytes(get(f"{SIPP_TABLES}/{SIPP_STATES}"))
     print("sipp")
+
+    (RAW / "census").mkdir(exist_ok=True)
+    for name in CENSUS_TABLES:
+        (RAW / "census" / name).write_bytes(get(f"{CENSUS_INCOME}/{name}"))
+    print("census income")
+
+    (RAW / "bls").mkdir(exist_ok=True)
+    (RAW / "bls" / "ce_quintiles.json").write_text(json.dumps(bls_ce(), indent=1))
+    print("bls")
 
     docs = {sid: fred_doc(sid) for sid in FRED_SERIES}
     docs["WID_shwealj992"] = wid_doc()
     docs["WID_shwealf992"] = wid_doc("shwealf992")
     docs["WID_sptincj992"] = wid_doc("sptincj992")
     docs["WID_ahwealj992"] = wid_doc("ahwealj992")
+    docs["WID_sdiincj992"] = wid_doc("sdiincj992")
+    docs["Census_CPS_income"] = census_income_doc()
     docs["SCF_codebook"] = scf_doc()
     docs["DFA_networth_shares"] = {
         "url": "https://www.federalreserve.gov/releases/z1/dataviz/dfa/",
@@ -221,6 +279,7 @@ def main():
         "definitions": (RAW / "dfa" / "dfa-data-definitions.txt").read_text(errors="replace")[:2500],
     }
     docs["Census_SIPP_wealth"] = sipp_doc()
+    docs["DFA_groups"] = DFA_GROUPS_DOC
     if (RAW / "cbo" / "62761-supp-data.xlsx").exists():
         docs["CBO_household_income"] = cbo_doc()
     docs.update(LITERATURE)

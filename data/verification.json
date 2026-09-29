@@ -163,6 +163,48 @@
    "info": true
   },
   {
+   "check": "Post-tax income: shares and dollars match WID",
+   "ok": true,
+   "detail": "7,500 cells 1950\u20132024 (sdiincj992, adiincj992 x inyixxi999): shares within 0.0000 pp, dollars within $0.50; each year's 100 bins sum to 100% within 0.06 pp; 1 rounded-zero cells estimated",
+   "info": false
+  },
+  {
+   "check": "Cross-source: WID top 1% income, pre-tax vs post-tax",
+   "ok": true,
+   "detail": "post-tax share is at or below pre-tax in 75 of 75 years; 2024: 20.7% pre-tax, 14.9% post-tax",
+   "info": true
+  },
+  {
+   "check": "1913\u20131949: WID group shares copied exactly",
+   "ok": true,
+   "detail": "37 years x wealth, pre-tax and post-tax income; largest difference 0.0000 pp; next 9% = top 10% minus top 1%; the four groups sum to 100% within 0.01 pp",
+   "info": false
+  },
+  {
+   "check": "Fed DFA breakdowns add up",
+   "ok": true,
+   "detail": "race, age, education, generation and income groups each sum to 100% of household net worth within 0.001 pp (38 year-end quarters); for every wealth group, the asset categories sum to total assets and assets minus debts equal net worth within 0.000%",
+   "info": false
+  },
+  {
+   "check": "Census household income (CPS) copied and consistent",
+   "ok": true,
+   "detail": "58 years 1967\u20132025 from Table H-2 (the newer-method row where a year repeats: [2013, 2017]); fifths sum to 100% within 0.2 pp (rounding); mean income rises from the lowest fifth to the top 5% in every year (Table H-3)",
+   "info": false
+  },
+  {
+   "check": "BLS spending by income fifth matches the API",
+   "ok": true,
+   "detail": "18 series, 1984\u20132023 (average annual expenditures, income before and after taxes); from 2004 the all-households mean is the average of the five fifths within 0.1% (each fifth holds the same number of consumer units); before 2004 the fifths cover complete income reporters only, so they differ by up to 5.8%",
+   "info": false
+  },
+  {
+   "check": "Census SIPP by state copied",
+   "ok": true,
+   "detail": "51 states and DC (2024); state household counts sum to 134.4M vs 134.4M in the Total row; no estimate published for AK, DC, DE, ND, RI, SD, VT, WY (Census: sample too small)",
+   "info": false
+  },
+  {
    "check": "Cross-source: SIPP vs SCF, 2022",
    "ok": true,
    "detail": "median $176,500 (SIPP) vs $192,700 (SCF), -8%; mean below the 99th percentile $541,100 vs $694,573, -22%. The SCF oversamples wealthy households; SIPP isn't built to measure wealth at the top.",
@@ -411,8 +453,8 @@
     "verdict": "supports",
     "confidence": 0.99,
     "probabilities": {
-     "contradicts": 0.01,
-     "supports": 0.99,
+     "contradicts": 0.0,
+     "supports": 1.0,
      "not_addressed": 0.0
     },
     "status": "pass",
@@ -424,7 +466,7 @@
     "claim": "A household's net worth is its total assets minus its total debt.",
     "expect": "supports",
     "verdict": "supports",
-    "confidence": 0.98,
+    "confidence": 0.97,
     "probabilities": {
      "contradicts": 0.01,
      "supports": 0.99,
@@ -456,8 +498,8 @@
     "verdict": "supports",
     "confidence": 1.0,
     "probabilities": {
-     "contradicts": 0.0,
      "supports": 1.0,
+     "contradicts": 0.0,
      "not_addressed": 0.0
     },
     "status": "pass",
@@ -471,8 +513,8 @@
     "verdict": "supports",
     "confidence": 1.0,
     "probabilities": {
-     "contradicts": 0.0,
      "supports": 1.0,
+     "contradicts": 0.0,
      "not_addressed": 0.0
     },
     "status": "pass",
@@ -484,11 +526,11 @@
     "claim": "The sex recorded for a household is the sex of its reference person.",
     "expect": "supports",
     "verdict": "supports",
-    "confidence": 0.97,
+    "confidence": 0.98,
     "probabilities": {
      "contradicts": 0.01,
-     "supports": 0.98,
-     "not_addressed": 0.01
+     "supports": 0.99,
+     "not_addressed": 0.0
     },
     "status": "pass",
     "control": false
@@ -524,12 +566,42 @@
     "control": false
    },
    {
+    "id": "scf_education",
+    "source": "SCF_codebook",
+    "claim": "Education groups for the reference person are: no high school diploma or GED; high school diploma or GED; some college or an associate degree; and a bachelor's degree or higher.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 1.0,
+    "probabilities": {
+     "contradicts": 0.0,
+     "supports": 1.0,
+     "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "scf_homeownership",
+    "source": "SCF_codebook",
+    "claim": "Households are classed as owning their home (a house, condo, mobile home, farm or similar) or otherwise.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 0.87,
+    "probabilities": {
+     "contradicts": 0.08,
+     "supports": 0.91,
+     "not_addressed": 0.01
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
     "id": "scf_age_numeric",
     "source": "SCF_codebook",
     "claim": "AGE holds the age itself as a number; the survey's age classes are then cut from it at 35, 45, 55, 65 and 75.",
     "expect": "supports",
     "verdict": "supports",
-    "confidence": 0.97,
+    "confidence": 0.99,
     "probabilities": {
      "contradicts": 0.01,
      "supports": 0.99,
@@ -544,11 +616,11 @@
     "claim": "The age recorded for a household is the age of its oldest member.",
     "expect": "contradicts",
     "verdict": "contradicts",
-    "confidence": 0.95,
+    "confidence": 0.94,
     "probabilities": {
-     "contradicts": 0.97,
+     "contradicts": 0.96,
      "supports": 0.0,
-     "not_addressed": 0.03
+     "not_addressed": 0.04
     },
     "status": "pass",
     "control": true
@@ -789,6 +861,141 @@
      "contradicts": 1.0,
      "supports": 0.0,
      "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": true
+   },
+   {
+    "id": "wid_post_definition",
+    "source": "WID_sdiincj992",
+    "claim": "Post-tax national income is primary income from all sectors, private and public, minus taxes.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 0.96,
+    "probabilities": {
+     "not_addressed": 0.0,
+     "supports": 0.97,
+     "contradicts": 0.03
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "wid_post_population",
+    "source": "WID_sdiincj992",
+    "claim": "The ranked population is adults over 20, with income split equally between members of a couple.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 1.0,
+    "probabilities": {
+     "not_addressed": 0.0,
+     "supports": 1.0,
+     "contradicts": 0.0
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "control_wid_post_pretax",
+    "source": "WID_sdiincj992",
+    "claim": "Post-tax national income is measured before any taxes are subtracted.",
+    "expect": "contradicts",
+    "verdict": "contradicts",
+    "confidence": 1.0,
+    "probabilities": {
+     "not_addressed": 0.0,
+     "supports": 0.0,
+     "contradicts": 1.0
+    },
+    "status": "pass",
+    "control": true
+   },
+   {
+    "id": "census_shares",
+    "source": "Census_CPS_income",
+    "claim": "The table gives the share of aggregate household income received by each household income fifth and the top 5 percent, 1967 to 2025.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 0.97,
+    "probabilities": {
+     "not_addressed": 0.0,
+     "supports": 0.98,
+     "contradicts": 0.02
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "census_cps",
+    "source": "Census_CPS_income",
+    "claim": "The figures come from the Current Population Survey's Annual Social and Economic Supplement.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 1.0,
+    "probabilities": {
+     "not_addressed": 0.0,
+     "supports": 1.0,
+     "contradicts": 0.0
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "control_census_wealth",
+    "source": "Census_CPS_income",
+    "claim": "The table gives the share of household wealth held by each fifth of households.",
+    "expect": "contradicts",
+    "verdict": "contradicts",
+    "confidence": 1.0,
+    "probabilities": {
+     "not_addressed": 0.0,
+     "supports": 0.0,
+     "contradicts": 1.0
+    },
+    "status": "pass",
+    "control": true
+   },
+   {
+    "id": "dfa_generations",
+    "source": "DFA_groups",
+    "claim": "Generations are defined by birth year: Silent and earlier before 1946, Baby Boomers 1946 to 1964, Generation X 1965 to 1980, and Millennials 1981 or later.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 0.99,
+    "probabilities": {
+     "contradicts": 0.0,
+     "not_addressed": 0.0,
+     "supports": 1.0
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "dfa_household_count",
+    "source": "DFA_groups",
+    "claim": "The demographic files give each category's holdings in millions of dollars together with a household count.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 0.99,
+    "probabilities": {
+     "contradicts": 0.0,
+     "not_addressed": 0.0,
+     "supports": 1.0
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "control_dfa_millennials",
+    "source": "DFA_groups",
+    "claim": "Millennials are households born in 1990 or later.",
+    "expect": "contradicts",
+    "verdict": "contradicts",
+    "confidence": 0.99,
+    "probabilities": {
+     "contradicts": 1.0,
+     "not_addressed": 0.0,
+     "supports": 0.0
     },
     "status": "pass",
     "control": true

@@ -15,6 +15,8 @@ any window of percentiles or years by adding sums before dividing:
   - households by race (RACECL4),
   - households by occupation (OCCAT2) and by work status (OCCAT1) of the reference person,
   - households by age of the reference person (AGE), in the Fed DFA's four age groups,
+  - households by the reference person's education (EDCL) and generation (birth year = survey year
+    minus AGE, in the Fed DFA's groups), and by whether they own their home (HOUSECL),
   - dollars held in each kind of asset, debt, net worth and income.
 The same sums are also kept for each age group on its own (by_age), so the page can show any
 breakdown for one age group, or several adjacent ones. Households are still ranked against all ages.
@@ -47,6 +49,13 @@ OCC_CODE = {"1": "occ_prof", "2": "occ_tech", "3": "occ_other", "4": "occ_none"}
 WORK_CODE = {"1": "work_employee", "2": "work_self", "3": "work_retired", "4": "work_other"}
 RANKINGS = {"wealth": "NETWORTH", "income": "INCOME"}
 RANKED_SUM = {"wealth": "networth", "income": "income"}  # what an age group's part of a bin is measured in
+EDUCATION = [("edu_nohs", "No high school diploma"), ("edu_hs", "High school diploma or GED"),
+             ("edu_some", "Some college or associate degree"), ("edu_college", "Bachelor's degree or higher")]  # EDCL 1-4, the reference person's education
+EDU_CODE = {"1": "edu_nohs", "2": "edu_hs", "3": "edu_some", "4": "edu_college"}
+HOMEOWN = [("home_owner", "Owns their home"), ("home_renter", "Rents or other")]  # HOUSECL 1 / 2
+# Generation of the reference person, by birth year (survey year minus age), in the Fed DFA's groups.
+GENERATION = [("gen_silent", "Silent or earlier (born before 1946)"), ("gen_boom", "Baby boomers (1946–64)"),
+              ("gen_x", "Generation X (1965–80)"), ("gen_mill", "Millennials or later (1981 on)")]
 AGES = [("age_u40", "Under 40"), ("age_40_54", "40–54"), ("age_55_69", "55–69"), ("age_70p", "70 and over")]  # DFA's groups
 HOLDINGS = [  # label, SCF summary variables summed
     ("home", "Own home", ["HOUSES"]),
@@ -68,6 +77,11 @@ def household_type(row):
 RACE_CODE = {"1": "white", "2": "black", "3": "hispanic", "4": "other"}
 
 
+def generation(row, year):
+    born = year - int(row["AGE"])
+    return "gen_silent" if born < 1946 else "gen_boom" if born < 1965 else "gen_x" if born < 1981 else "gen_mill"
+
+
 def age_group(row):
     age = int(row["AGE"])
     return "age_u40" if age < 40 else "age_40_54" if age < 55 else "age_55_69" if age < 70 else "age_70p"
@@ -84,7 +98,7 @@ def build_survey(year, rank_by):
     def blank():
         return {"n": 0, "w": 0.0, "networth": 0.0, "income": 0.0, "debt": 0.0, "assets": 0.0,
                 "adults": 0.0, "part_women": 0.0, "part_men": 0.0,
-                **{k: 0.0 for k, _ in GENDER + RACE + OCCUPATION + WORK + AGES}, **{k: 0.0 for k, _, _ in HOLDINGS}}
+                **{k: 0.0 for k, _ in GENDER + RACE + OCCUPATION + WORK + AGES + EDUCATION + HOMEOWN + GENERATION}, **{k: 0.0 for k, _, _ in HOLDINGS}}
 
     bins = [blank() for _ in range(100)]
     by_age = {a: [blank() for _ in range(100)] for a, _ in AGES}
@@ -95,8 +109,8 @@ def build_survey(year, rank_by):
         cum += w
         b_i = min(99, int(mid * 100))
         a = age_group(r)
-        add(bins[b_i], w, r, a, nw)
-        add(by_age[a][b_i], w, r, a, nw)
+        add(bins[b_i], w, r, a, nw, year)
+        add(by_age[a][b_i], w, r, a, nw, year)
         c = cells[b_i].setdefault(int(r["AGE"]), [0.0, 0.0, 0.0])
         c[0] += w
         c[1] += w * float(r["NETWORTH"])
@@ -104,8 +118,8 @@ def build_survey(year, rank_by):
     return bins, by_age, cells, total_w, len(rows)
 
 
-def add(b, w, r, a, ranked):
-    """Add one row (weight w, age group a, ranked by net worth or income = `ranked`) to bin b."""
+def add(b, w, r, a, ranked, year):
+    """Add one row (weight w, age group a, ranked by net worth or income = `ranked`, survey `year`) to bin b."""
     b["n"] += 1
     b["w"] += w
     b["networth"] += w * float(r["NETWORTH"])
@@ -127,6 +141,9 @@ def add(b, w, r, a, ranked):
     b[RACE_CODE[r["RACECL4"]]] += w
     b[OCC_CODE[r["OCCAT2"]]] += w
     b[WORK_CODE[r["OCCAT1"]]] += w
+    b[EDU_CODE[r["EDCL"]]] += w
+    b["home_owner" if r["HOUSECL"] == "1" else "home_renter"] += w
+    b[generation(r, year)] += w
     for key, _, cols in HOLDINGS:
         b[key] += w * sum(float(r[c]) for c in cols)
 
@@ -176,6 +193,9 @@ def main():
             "occupation": [list(c) for c in OCCUPATION],
             "work": [list(c) for c in WORK],
             "age": [list(c) for c in AGES],
+            "education": [list(c) for c in EDUCATION],
+            "homeownership": [list(c) for c in HOMEOWN],
+            "generation": [list(c) for c in GENERATION],
         },
         "implicates": 5,
         # rankings[wealth|income][f][survey index][bin] = weighted sum; "n" is rows (5 per household)
@@ -193,7 +213,7 @@ def main():
         out["typical"]["mean"].append(round(mean))
         out["typical"]["mean_below_p99"].append(round(low))
         print(f"{year}: median ${med:,.0f}, mean ${mean:,.0f}, bottom-99% mean ${low:,.0f} ({SURVEYS[-1]} dollars)")
-    keys = ["n", "w", "networth", "income", "debt", "assets", "adults", "part_women", "part_men"] +[k for k, _ in GENDER + RACE + OCCUPATION + WORK + AGES] + [k for k, _, _ in HOLDINGS]
+    keys = ["n", "w", "networth", "income", "debt", "assets", "adults", "part_women", "part_men"] +[k for k, _ in GENDER + RACE + OCCUPATION + WORK + AGES + EDUCATION + HOMEOWN + GENERATION] + [k for k, _, _ in HOLDINGS]
     assert len(keys) == len(set(keys)), "category keys must be unique across groups"
     age_keys = [a for a, _ in AGES]
     for name, var in RANKINGS.items():
