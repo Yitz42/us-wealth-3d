@@ -47,7 +47,11 @@ CLAIMS = {
         ("wid_income_pensions", "supports", "Pre-tax national income counts pensions on a distribution basis."),
         ("control_wid_income_wages", "contradicts", "Pre-tax national income counts only wages and salaries."),
     ],
-    "A032RC1A027NBEA": [("national_income", "supports", "Annual US national income, measured in billions of dollars.")],
+    "WID_ahwealj992": [
+        ("wid_avg_per_adult", "supports",
+         "The values are average net personal wealth per adult aged 20 and over, with wealth split equally between members of a couple."),
+        ("control_wid_avg_household", "contradicts", "The values are average net worth per household, with each household counted once."),
+    ],
     "SCF_codebook": [
         # Tests the source fact the page's "Couples" label rests on; the label itself is the page's wording.
         ("scf_couples", "supports",
@@ -241,17 +245,31 @@ def code_checks(w):
            f"and for the {n_scaled} earlier years the households-and-nonprofits total (TNWBSHNO) x {hh_part:.1%}"
            + (f"; bad {bad[:3]}" if bad else ""))
 
-    # 6. every dollar cell obeys share x total / (households/100), within what the
-    #    stored share's 4-decimal rounding (±0.00005 pp) can explain
-    worst = 0.0
-    for i in range(100):
-        for j, y in enumerate(years):
-            m = w["macro"][str(y)]
-            per_pp = m["net_worth_total"] / (m["households"] / 100) / 100  # dollars per percentage point
-            expect = share[i][j] * per_pp
-            worst = max(worst, abs(w["measures"]["nominal"][i][j] - expect) / (0.00005 * per_pp + 1))
-    record("Dollar values = share x net worth / households", worst <= 1,
-           f"{100 * len(years)} cells; worst error is {worst:.2f}x the share-rounding tolerance")
+    # 6. dollar cells are per ADULT: WID's own average (constant 2025 $) x WID's price index,
+    #    re-read from the raw file for every WID year; 2025-26 are estimates and are checked for
+    #    consistency with the extended shares instead
+    wavg, wpx = defaultdict(dict), {}
+    with open(RAW / "WID_data_US.csv") as f:
+        for r in csv.DictReader(f, delimiter=";"):
+            if r["variable"] in ("ahwealj992", "aptincj992") and r["percentile"] in bins:
+                wavg[(r["variable"], int(r["year"]))][r["percentile"]] = float(r["value"])
+            elif r["variable"] == "inyixxi999" and r["percentile"] == "p0p100":
+                wpx[int(r["year"])] = float(r["value"])
+    worst, n_cells = 0.0, 0
+    for j, y in enumerate(wid_years):
+        jj = years.index(y)
+        for i, b in enumerate(bins):
+            expect = wavg[("ahwealj992", y)][b] * wpx[y]
+            worst = max(worst, abs(w["measures"]["nominal"][i][jj] - expect)); n_cells += 1
+    ext = [y for y in years if w["tier"][str(y)] == "extended_dfa"]
+    ratio_spread = 0.0
+    for y in ext:  # within an extended year, dollars are proportional to the extended shares
+        jj = years.index(y)
+        rs = [w["measures"]["nominal"][i][jj] / share[i][jj] for i in range(100) if abs(share[i][jj]) > 0.05]
+        ratio_spread = max(ratio_spread, (max(rs) - min(rs)) / statistics.mean(rs))
+    record("Dollar values = WID's average per adult x WID's price index", worst <= 0.5 and ratio_spread < 0.01,
+           f"{n_cells} cells {wid_years[0]}-{wid_years[-1]} match ahwealj992 x inyixxi999 within ${worst:.2f}; "
+           f"{', '.join(map(str, ext))} (estimates) stay proportional to the extended shares")
 
     # informational: how far WID's top-1% share sits from the Fed's top-1% (different units and methods)
     diffs = []
@@ -322,17 +340,13 @@ def code_checks(w):
            + (f"; first mismatch {(bad + bad_est)[0]}" if bad or bad_est else ""))
     record("Income: bins sum to 100% and match WID's group totals", worst_sum < 0.5 and worst_agg < 0.5,
            f"{inc['years'][0]}-{inc['years'][-1]}; largest deviation {worst_sum:.3f} pp from 100%, {worst_agg:.3f} pp from WID's bottom-50 / middle-40 / top-10")
-    ni = {int(d[:4]): v for d, v in fred("A032RC1A027NBEA").items()}
     worst_d = 0.0
     for y in inc["years"]:
-        j, m = years.index(y), w["macro"][str(y)]
-        if abs(inc["national_income"][str(y)] - ni[y] * 1e9) > 1:
-            worst_d = float("inf")
-        per_pp = ni[y] * 1e9 / (m["households"] / 100) / 100
-        for i in range(100):
-            worst_d = max(worst_d, abs(inc["measures"]["nominal"][i][j] - ishare[i][j] * per_pp) / (0.00005 * per_pp + 1))
-    record("Income: dollar values = share x national income / households", worst_d <= 1,
-           f"national income matches FRED A032RC1A027NBEA; worst error is {worst_d:.2f}x the share-rounding tolerance")
+        j = years.index(y)
+        for i, b in enumerate(bins):
+            worst_d = max(worst_d, abs(inc["measures"]["nominal"][i][j] - wavg[("aptincj992", y)][b] * wpx[y]))
+    record("Income: dollar values = WID's average per adult x WID's price index", worst_d <= 0.5,
+           f"{len(inc['years']) * 100} cells {inc['years'][0]}-{inc['years'][-1]} match aptincj992 x inyixxi999 within ${worst_d:.2f}")
 
     # 9. top 0.1% and top 0.01% (Trends lines): copied exactly, and nested inside the top 1%
     td = w["top_detail"]

@@ -66,7 +66,7 @@ Python 3.9+ standard library only. `fetch_data.py` pulls just the US files out o
 | Group shares used to extend and cross-check | Fed Distributional Financial Accounts | 1989–2026 Q2 |
 | Total household net worth | Fed Z.1 via FRED `BOGZ1FL192090005Q` (households only); before 1987, `TNWBSHNO` (households and nonprofits) scaled to households | 1987– / 1945– |
 | Income share per 1% bin | WID.world `sptincj992` (pre-tax national income) | 1950–2024 |
-| National income | BEA via FRED `A032RC1A027NBEA` | 1929– |
+| Average wealth and income per adult, adult count, price index | WID.world `ahwealj992`, `aptincj992`, `npopuli992`, `inyixxi999` | 1950–2024 |
 | Households | Census via FRED `TTLHH` | 1940– |
 | CPI-U | BLS via FRED `CPIAUCNS` | 1913– |
 | PCE price index | BEA via FRED `DPCERG3A086NBEA`, `PCEPI` | 1929– |

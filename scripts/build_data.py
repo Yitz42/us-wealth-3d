@@ -70,6 +70,29 @@ def load_wid(variable="shwealj992"):
     return dict(shares), quality
 
 
+def load_wid_averages(variable):
+    """{year: {percentile: value}} for a WID average series (ahwealj992 = net personal wealth per
+    adult, aptincj992 = pre-tax income per adult), in constant 2025 dollars, for the 1% bins, the
+    top 0.1% / 0.01% and the whole population."""
+    wanted = set(BINS) | {"p99.9p100", "p99.99p100", "p0p100"}
+    out = defaultdict(dict)
+    with open(RAW / "WID_data_US.csv") as f:
+        for row in csv.DictReader(f, delimiter=";"):
+            if row["variable"] == variable and row["percentile"] in wanted and int(row["year"]) >= START_YEAR:
+                out[int(row["year"])][row["percentile"]] = float(row["value"])
+    return dict(out)
+
+
+def load_wid_total(variable):
+    """{year: value} for a WID whole-population series (inyixxi999 price index, npopuli992 adults)."""
+    out = {}
+    with open(RAW / "WID_data_US.csv") as f:
+        for row in csv.DictReader(f, delimiter=";"):
+            if row["variable"] == variable and row["percentile"] == "p0p100":
+                out[int(row["year"])] = float(row["value"])
+    return out
+
+
 def load_dfa_levels():
     """{(year, quarter): {category: net worth, $ millions}} from the Fed DFA levels file."""
     out = defaultdict(dict)
@@ -289,29 +312,49 @@ def main():
     cpi_base = macro[BASE_YEAR]["cpi_u"]
     pce_p_base = macro[BASE_YEAR]["pce_price_index"]
 
-    # --- Measures: rows = bins (p0p1..p99p100), cols = years ---------------------
+    # --- Dollar values are per ADULT, from WID's own averages -------------------------
+    # WID ranks adults (couples' wealth split equally), so its dollar figures are per adult:
+    # ahwealj992 / aptincj992 give each 1% group's average in constant 2025 dollars, and WID's
+    # national income price index (inyixxi999, 2025 = 1) turns them into each year's dollars.
+    # 2025-26 (past WID's last year): WID's 2024 average per adult, grown with the Fed's
+    # household net worth and WID's adult count, times the extended shares; these are estimates.
+    avg_w = load_wid_averages("ahwealj992")
+    wid_px = load_wid_total("inyixxi999")
+    wid_adults = load_wid_total("npopuli992")
+    last_ad = max(wid_adults)
+    for y in years:
+        if y not in wid_adults:  # project the adult count forward at the last year's growth
+            wid_adults[y] = wid_adults[last_ad] * (wid_adults[last_ad] / wid_adults[last_ad - 1]) ** (y - last_ad)
+            notes[y].append(f"Adult count projected from {last_ad} at the {last_ad - 1}-{last_ad} growth rate.")
+        macro[y]["adults"] = round(wid_adults[y])
+    base_avg = avg_w[wid_last]["p0p100"] * wid_px[wid_last]  # nominal wealth per adult, WID's last year
+
+    def wealth_per_adult(y, b):
+        if y <= wid_last:
+            return avg_w[y][b] * wid_px[y]
+        growth = (macro[y]["net_worth_total"] / macro[wid_last]["net_worth_total"]) / (wid_adults[y] / wid_adults[wid_last])
+        return wid[y][b] * 100 * base_avg * growth
+
     share, nominal, real_cpi, real_pce, spend_years = [], [], [], [], []
     for b in BINS:
         r_share, r_nom, r_cpi, r_pce, r_sp = [], [], [], [], []
         for y in years:
             m = macro[y]
             s = wid[y][b]
-            per_hh = s * m["net_worth_total"] / (m["households"] / 100)
-            spend_per_hh = m["pce_total"] / m["households"]
+            per_ad = wealth_per_adult(y, b)
             r_share.append(round(s * 100, 4))
-            r_nom.append(round(per_hh))
-            r_cpi.append(round(per_hh * cpi_base / m["cpi_u"]))
-            r_pce.append(round(per_hh * pce_p_base / m["pce_price_index"]))
-            r_sp.append(round(per_hh / spend_per_hh, 3))
+            r_nom.append(round(per_ad))
+            r_cpi.append(round(per_ad * cpi_base / m["cpi_u"]))
+            r_pce.append(round(per_ad * pce_p_base / m["pce_price_index"]))
+            r_sp.append(round(per_ad / (m["pce_total"] / wid_adults[y]), 3))
         share.append(r_share); nominal.append(r_nom); real_cpi.append(r_cpi)
         real_pce.append(r_pce); spend_years.append(r_sp)
 
     # --- Pre-tax income (WID sptincj992): same 1% bins, 1950 to WID's last year ---------
-    # Dollar views use national income (BEA via FRED A032RC1A027NBEA), the total that
-    # WID's pre-tax national income distributes.
+    # Dollar views use WID's own average pre-tax income per adult (aptincj992).
     inc, inc_q = load_wid("sptincj992")
-    national_income = {y: v * 1e9 for y, v in annual(fred("A032RC1A027NBEA")).items()}
-    inc_years = sorted(y for y in years if y in inc and len(inc[y]) == 100 and y in national_income)
+    avg_i = load_wid_averages("aptincj992")
+    inc_years = sorted(y for y in years if y in inc and len(inc[y]) == 100 and y in avg_i and y in wid_px)
     inc_meas = {k: [[None] * len(years) for _ in BINS] for k in ("share", "nominal", "real_cpi", "real_pce", "spend_years")}
     inc_est = [[0] * len(years) for _ in BINS]
     inc_tier = {}
@@ -322,12 +365,12 @@ def main():
         filled, g = fill_rounded_zeros([inc[y][b] for b in BINS], floor=0.0)
         inc_tier[str(y)] = "measured" if inc_q.get(y) == "5" else "wid_imputed"
         for i, s_ in enumerate(filled):
-            per_hh = s_ * national_income[y] / (m["households"] / 100)
+            per_ad = avg_i[y][BINS[i]] * wid_px[y]  # WID's pre-tax income per adult, in that year's dollars
             inc_meas["share"][i][j] = round(s_ * 100, 4)
-            inc_meas["nominal"][i][j] = round(per_hh)
-            inc_meas["real_cpi"][i][j] = round(per_hh * cpi_base / m["cpi_u"])
-            inc_meas["real_pce"][i][j] = round(per_hh * pce_p_base / m["pce_price_index"])
-            inc_meas["spend_years"][i][j] = round(per_hh / (m["pce_total"] / m["households"]), 3)
+            inc_meas["nominal"][i][j] = round(per_ad)
+            inc_meas["real_cpi"][i][j] = round(per_ad * cpi_base / m["cpi_u"])
+            inc_meas["real_pce"][i][j] = round(per_ad * pce_p_base / m["pce_price_index"])
+            inc_meas["spend_years"][i][j] = round(per_ad / (m["pce_total"] / wid_adults[y]), 3)
             inc_est[i][j] = int(i in g)
     # --- Top 0.1% and top 0.01% (WID's own g-percentiles), for the Trends lines --------
     # Shares as published; dollar views divide by the households in the group (0.1% or 0.01% of all).
@@ -345,16 +388,16 @@ def main():
             views = {k: [None] * len(years) for k in ("share", "nominal", "real_cpi", "real_pce", "spend_years")}
             for j, y in enumerate(years):
                 s_ = top_raw[m][pc].get(y)
-                total = macro[y]["net_worth_total"] if m == "wealth" else national_income.get(y)
-                if s_ is None or total is None:
+                a = (avg_w if m == "wealth" else avg_i).get(y, {}).get(pc)
+                if s_ is None or a is None or y not in wid_px:
                     continue
                 mm = macro[y]
-                per_hh = s_ * total / (mm["households"] * frac)
+                per_ad = a * wid_px[y]  # WID's average per adult in the group, that year's dollars
                 views["share"][j] = round(s_ * 100, 4)
-                views["nominal"][j] = round(per_hh)
-                views["real_cpi"][j] = round(per_hh * cpi_base / mm["cpi_u"])
-                views["real_pce"][j] = round(per_hh * pce_p_base / mm["pce_price_index"])
-                views["spend_years"][j] = round(per_hh / (mm["pce_total"] / mm["households"]), 3)
+                views["nominal"][j] = round(per_ad)
+                views["real_cpi"][j] = round(per_ad * cpi_base / mm["cpi_u"])
+                views["real_pce"][j] = round(per_ad * pce_p_base / mm["pce_price_index"])
+                views["spend_years"][j] = round(per_ad / (mm["pce_total"] / wid_adults[y]), 3)
             top_detail[m][key] = views
 
     # --- The Fed's own numbers (DFA), for the Trends source switch -------------------
@@ -384,8 +427,7 @@ def main():
             fed[g]["spend_years"][j] = round(per_hh / (mm["pce_total"] / mm["households"]), 3)
     fed_detail = {"quarter": fed_quarter, "groups": fed}
 
-    income = {"years": inc_years, "tier": inc_tier, "estimated": inc_est, "measures": inc_meas,
-              "national_income": {str(y): national_income[y] for y in inc_years}}
+    income = {"years": inc_years, "tier": inc_tier, "estimated": inc_est, "measures": inc_meas}
 
     # --- Women and men: estimated 1% bins, 1962-2019 -------------------------------------
     g_shares, g_avg, g_pop = load_gender()
@@ -467,7 +509,7 @@ def main():
     jl = years.index(inc_years[-1])
     print(f"  income {inc_years[0]}-{inc_years[-1]}: top 1% {inc_meas['share'][99][jl]:.1f}%, "
           f"bottom 50% {sum(inc_meas['share'][i][jl] for i in range(50)):.1f}% in {inc_years[-1]}; "
-          f"top-1% avg ${inc_meas['nominal'][99][jl] / 1e6:.2f}M per household; "
+          f"top-1% avg ${inc_meas['nominal'][99][jl] / 1e6:.2f}M per adult; "
           f"{sum(map(sum, inc_est))} cells estimated")
     n_est = sum(len(guessed[y]) for y in years)
     print(f"  {n_est} of {100 * len(years)} cells estimated (WID published exactly 0)")

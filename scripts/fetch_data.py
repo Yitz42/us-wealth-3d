@@ -4,7 +4,7 @@ import csv, html, io, json, pathlib, re, subprocess, sys, zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 RAW = ROOT / "data" / "raw"
-FRED_SERIES = ["CPIAUCNS", "DPCERG3A086NBEA", "PCEPI", "PCECA", "PCE", "TTLHH", "TNWBSHNO", "BOGZ1FL192090005Q", "A032RC1A027NBEA"]
+FRED_SERIES = ["CPIAUCNS", "DPCERG3A086NBEA", "PCEPI", "PCECA", "PCE", "TTLHH", "TNWBSHNO", "BOGZ1FL192090005Q"]
 DFA_ZIP = "https://www.federalreserve.gov/releases/z1/dataviz/download/zips/dfa.zip"
 SCF_SURVEYS = [1989, 1992, 1995, 1998, 2001, 2004, 2007, 2010, 2013, 2016, 2019, 2022]
 SCF_FILES = "https://www.federalreserve.gov/econres/files"
@@ -143,6 +143,7 @@ def main():
     docs["WID_shwealj992"] = wid_doc()
     docs["WID_shwealf992"] = wid_doc("shwealf992")
     docs["WID_sptincj992"] = wid_doc("sptincj992")
+    docs["WID_ahwealj992"] = wid_doc("ahwealj992")
     docs["SCF_codebook"] = scf_doc()
     docs["DFA_networth_shares"] = {
         "url": "https://www.federalreserve.gov/releases/z1/dataviz/dfa/",

@@ -135,6 +135,7 @@
   .controls-card { margin-top: 20px; padding: 16px; display: grid; gap: 14px; }
   body[data-tab="trends"] .only-3d, body[data-tab="checks"] #controls-card { display: none; }
   .dual-wide { width: min(260px, 55vw); }
+  .control-note { margin: 6px 0 0; max-width: 360px; font-size: 12px; }
   .dual { max-width: 55vw; }
   .control { max-width: 100%; }
   .controls .seg { max-width: 100%; }
@@ -277,6 +278,7 @@
           </div>
           <output id="age-out" for="age-lo age-hi"></output>
         </div>
+        <p class="muted control-note" id="age-note" hidden>From the Survey of Consumer Finances, every 3 years 1989–2022: interpolated between surveys and held at the 2022 mix after. Dollar views show this age group's contribution to each group's average, not its own average.</p>
       </div>
     </div>
   </div>
@@ -328,6 +330,7 @@
           <button data-sector="work" aria-pressed="false">Work status</button>
         </div>
       </div>
+      <p class="muted control-note" id="bd-caveat" hidden>Survey estimates: a single percentile has only a few dozen surveyed households (use the averaging options below), and each couple counts as one woman and one man.</p>
       <p class="slice-title" id="slice-title"></p>
       <div id="slice-chart" role="img" aria-label="Bar chart of the selected slice"></div>
       <p class="chart-key" id="bd-key" hidden></p>
@@ -386,10 +389,9 @@
         </ul>
       </div>
       <div class="card source">
-        <h3>Totals and households</h3>
-        <p>Turns percentage shares into dollars per household.</p>
+        <h3>Totals, adults and households</h3>
+        <p>WID's own averages per adult (<code>ahwealj992</code>, <code>aptincj992</code>), its adult count (<code>npopuli992</code>) and price index (<code>inyixxi999</code>) give the dollar views. The Fed's household net worth carries them past 2024, and the Census household count turns the Fed's figures into per-household dollars.</p>
         <ul>
-          <li><a href="https://fred.stlouisfed.org/series/A032RC1A027NBEA" target="_blank" rel="noopener">National income (BEA, A032RC1A027NBEA)</a>, for the Income measure</li>
           <li><a href="https://fred.stlouisfed.org/series/BOGZ1FL192090005Q" target="_blank" rel="noopener">Household net worth (Fed Z.1 table B.101.h, BOGZ1FL192090005Q)</a>, 1987 on · before 1987: <a href="https://fred.stlouisfed.org/series/TNWBSHNO" target="_blank" rel="noopener">households &amp; nonprofits (TNWBSHNO)</a>, scaled to households</li>
           <li><a href="https://fred.stlouisfed.org/series/TTLHH" target="_blank" rel="noopener">Total households (Census, TTLHH)</a></li>
         </ul>
@@ -412,18 +414,18 @@
       <dl>
         <dt>Share of wealth</dt>
         <dd>WID's share of total net personal wealth held by each 1-percentile group. Bins with more debt than assets are negative (shown in red).</dd>
-        <dt>Nominal dollars per household</dt>
-        <dd>share × total household net worth (Fed Z.1, year-end) ÷ (households ÷ 100). This gives the average net worth of a household in that 1% group, in dollars of that year.</dd>
+        <dt>Dollars per adult</dt>
+        <dd>WID's own average net worth (or pre-tax income) per adult in each 1% group, published in constant 2025 dollars and turned into each year's dollars with WID's national income price index. Because WID ranks adults, with a couple's wealth split equally, these are per adult, not per household. For 2025–2026, past WID's last year, they are our estimates: WID's 2024 average per adult, grown with the Fed's household net worth and WID's adult count, times the extended shares.</dd>
         <dt>Real dollars, CPI-U / PCE</dt>
         <dd id="m-real"></dd>
         <dt>Years of consumer spending</dt>
-        <dd>Average net worth in the group ÷ consumer spending per household (PCE ÷ households). A value of 10 means the group's wealth would pay for 10 years of the average household's spending.</dd>
+        <dd>Average net worth per adult in the group ÷ consumer spending per adult (PCE ÷ WID's adult count). A value of 10 means the group's wealth would pay for 10 years of an average adult's share of spending.</dd>
         <dt>Adults vs households</dt>
-        <dd>WID ranks adults aged 20+, with each couple's wealth split equally between them, not households. It is the only source with 1-percentile detail back to 1950, so its shares are applied to household totals here. Fed data, which ranks households, puts the top 1% about <span id="m-gap">5</span> points lower than WID does.</dd>
-        <dt>Grey pillars: estimated values</dt>
-        <dd id="m-guess">WID publishes each group's share rounded to 0.01% of all wealth. Groups holding almost nothing, or owing almost as much as they own, come out as exactly 0.00%, which hides both their size and whether they are in debt. Each run of these zeros is estimated by drawing a straight line between the nearest published groups on either side; wealth always rises with rank, so the line stays in order. A run at the very bottom (in the 1950s) is extended from the trend of the next 20 groups. Every estimate stays within ±0.0045%, so it still rounds to WID's 0.00%.</dd>
+        <dd>WID ranks adults aged 20+, with each couple's wealth split equally between them, not households, so the 3-D map's percentiles and dollars are per adult. Adults and households rank differently, so WID's figures can't be read as household averages. The Fed and the Survey of Consumer Finances rank households: use the Trends tab's Fed or Compare source for per-household dollars. The Fed puts the top 1% about <span id="m-gap">5</span> points lower than WID does.</dd>
+        <dt>Grey pillars: estimated shares</dt>
+        <dd id="m-guess">WID publishes each group's share rounded to 0.01% of all wealth. Groups holding almost nothing, or owing almost as much as they own, come out as exactly 0.00%, which hides both their size and whether they are in debt. Each run of these zeros is estimated by drawing a straight line between the nearest published groups on either side; wealth always rises with rank, so the line stays in order. A run at the very bottom (in the 1950s) is extended from the trend of the next 20 groups. Every estimate stays within ±0.0045%, so it still rounds to WID's 0.00%. This affects the Share view only: WID publishes each group's average dollars precisely, so dollar views need no estimate.</dd>
         <dt>Income</dt>
-        <dd>The Income measure is WID's pre-tax national income for each 1% group, 1950–2024: wages plus business and investment income, before taxes and transfers, with pensions counted when they are paid out. It is broader than salary alone. Dollar views apply these shares to US national income (BEA) per household, the same way wealth shares are applied to household net worth. Groups WID rounds to exactly 0.00% are estimated in grey, as for wealth. There is no 1% income data after 2024 yet.</dd>
+        <dd>The Income measure is WID's pre-tax national income for each 1% group, 1950–2024: wages plus business and investment income, before taxes and transfers, with pensions counted when they are paid out. It is broader than salary alone. Dollar views are WID's own average pre-tax income per adult in each group. Groups WID rounds to exactly 0.00% are estimated in grey, as for wealth. There is no 1% income data after 2024 yet.</dd>
         <dt>Age of household head</dt>
         <dd id="m-age"></dd>
         <dt>Gender, race, location of money, work sector and age</dt>
@@ -496,6 +498,7 @@
         <button data-txsector="work" aria-pressed="false">Work status</button>
       </div>
     </div>
+    <p class="muted control-note" id="tx-caveat" hidden>Survey estimates from the Survey of Consumer Finances (every 3 years, 1989–2022; years between are interpolated). Each couple counts as one woman and one man.</p>
     <p class="slice-title" id="tx-chart-title" style="margin-top:12px"></p>
     <div id="tx-chart" role="img" aria-label="Bar chart of the four groups"></div>
     <p class="chart-key" id="tx-key"></p>
@@ -537,20 +540,20 @@
   const VIEWS = {
     share:       { label: "Share of wealth",   z: "Share of total wealth (%)",         fmt: v => `${v.toFixed(v !== 0 && Math.abs(v) < 0.1 ? 3 : 2)}%`, logUnit: 0.01,
                    note: "Percent of all US household wealth held by each 1% group. The top 1% ridge dwarfs everything else. Switch to Log to see the bottom 99%." },
-    nominal:     { label: "Nominal $",         z: "Avg net worth per household (current $)", fmt: money, logUnit: 1000,
-                   note: "Average net worth of a household in each 1% group, in dollars of that year (not adjusted for inflation)." },
-    real_cpi:    { label: "Real $ (CPI-U)",    z: `Avg net worth per household (${base} $, CPI-U)`, fmt: money, logUnit: 1000,
+    nominal:     { label: "Nominal $",         z: "Avg net worth per adult (current $)", fmt: money, logUnit: 1000,
+                   note: "Average net worth per adult in each 1% group (WID's own averages; a couple's wealth is split equally), in dollars of that year, not adjusted for inflation." },
+    real_cpi:    { label: "Real $ (CPI-U)",    z: `Avg net worth per adult (${base} $, CPI-U)`, fmt: money, logUnit: 1000,
                    note: `Adjusted for inflation with the BLS consumer price index (CPI-U), in ${base} dollars.` },
-    real_pce:    { label: "Real $ (PCE)",      z: `Avg net worth per household (${base} $, PCE)`, fmt: money, logUnit: 1000,
+    real_pce:    { label: "Real $ (PCE)",      z: `Avg net worth per adult (${base} $, PCE)`, fmt: money, logUnit: 1000,
                    note: `Adjusted for inflation with the BEA PCE price index (the Fed's preferred inflation measure), in ${base} dollars.` },
-    spend_years: { label: "Consumer spending", z: "Years of avg household spending",     fmt: v => `${v.toFixed(Math.abs(v) < 1 ? 2 : 1)} yrs`, logUnit: 0.01,
-                   note: "Group's average net worth divided by consumer spending per household (PCE ÷ households)." },
+    spend_years: { label: "Consumer spending", z: "Years of avg spending per adult",     fmt: v => `${v.toFixed(Math.abs(v) < 1 ? 2 : 1)} yrs`, logUnit: 0.01,
+                   note: "Group's average net worth per adult divided by consumer spending per adult (PCE ÷ adults)." },
   };
   const TIERS = {
     measured:     { label: "Measured (WID, from tax microdata)", color: "--tier-measured" },
     wid_imputed:  { label: "WID estimate from income-tax trends", color: "--tier-imputed" },
     wid_nowcast:  { label: "WID preliminary estimate (nowcast)", color: "--tier-nowcast" },
-    extended_dfa: { label: "Extended here with Fed DFA", color: "--tier-extended" },
+    extended_dfa: { label: "Our estimate using the Fed's changes", color: "--tier-extended" },
     none: { label: "No 1% income data yet", color: "--grid" },
   };
   const GROUPS = [["Bottom 50%", 0, 50], ["50th–90th", 50, 90], ["90th–99th", 90, 99], ["Top 1%", 99, 100]];
@@ -588,16 +591,16 @@
   // Axis titles and notes for the income measure.
   const INCOME_TEXT = {
     share: ["Share of total pre-tax income (%)", "Percent of all US pre-tax income received by each 1% group. Switch to Log to see the bottom 99% in detail."],
-    nominal: ["Avg pre-tax income per household (current $)", "Average pre-tax income of a household in each 1% group, in dollars of that year."],
-    real_cpi: [`Avg pre-tax income per household (${base} $, CPI-U)`, `Adjusted for inflation with the BLS consumer price index (CPI-U), in ${base} dollars.`],
-    real_pce: [`Avg pre-tax income per household (${base} $, PCE)`, `Adjusted for inflation with the BEA PCE price index, in ${base} dollars.`],
-    spend_years: ["Income ÷ avg household spending (years)", "Each group's average income divided by consumer spending per household (PCE ÷ households). 1 means it matches average spending."],
+    nominal: ["Avg pre-tax income per adult (current $)", "Average pre-tax income per adult in each 1% group (WID's own averages), in dollars of that year."],
+    real_cpi: [`Avg pre-tax income per adult (${base} $, CPI-U)`, `Adjusted for inflation with the BLS consumer price index (CPI-U), in ${base} dollars.`],
+    real_pce: [`Avg pre-tax income per adult (${base} $, PCE)`, `Adjusted for inflation with the BEA PCE price index, in ${base} dollars.`],
+    spend_years: ["Income ÷ avg spending per adult (years)", "Each group's average income per adult divided by consumer spending per adult (PCE ÷ adults). 1 means it matches average spending."],
   };
-  const zTitle = view => (isInc() ? INCOME_TEXT[state.view][0] : view.z) + (ageOn() ? ` · head ${ageLabel()}` : "");
+  const zTitle = view => (isInc() ? INCOME_TEXT[state.view][0] : view.z) + (ageOn() ? (state.view === "share" ? ` · part held by heads ${ageLabel()}` : ` · contribution of heads ${ageLabel()}`) : "");
   // With an age chosen, keep only the note's first sentence: the rest describes the all-ages shape.
   const viewNote = () => (isInc() ? INCOME_TEXT[state.view][1] : VIEWS[state.view].note).replace(ageOn() ? /(?<=\.) .*$/ : /$^/, "") + (!ageOn() ? "" :
     ` Showing only the part ${isInc() ? "received" : "held"} by households whose head is ${ageLabel()}, ${SV[0]} onward (Survey of Consumer Finances). ` +
-    `Percentiles still rank all ages, and dollar values divide that part by every household in the group, so adjacent age ranges add up to the full chart.`);
+    `Percentiles still rank all ages. Dollar values are that part divided by every adult in the group, i.e. the age group's contribution to the group's average, not those households' own average; adjacent age ranges add up to the full chart.`);
   function money(v) {
     const a = Math.abs(v), s = v < 0 ? "−$" : "$";
     if (a >= 1e9) return `${s}${(a / 1e9).toFixed(2)}B`;
@@ -649,6 +652,8 @@
     document.querySelectorAll("#measure-seg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.measure === state.measure));
     document.querySelectorAll("#sector-seg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.sector === state.sector));
     document.getElementById("sector-seg").hidden = state.breakdown !== "sector";
+    document.getElementById("age-note").hidden = !ageOn();
+    document.getElementById("bd-caveat").hidden = state.breakdown === "wealth";
     document.getElementById("bd-value").textContent = isInc() ? "Income" : "Wealth";
     seg.querySelector('[data-view="share"]').textContent = isInc() ? "Share of income" : "Share of wealth";
     // The age range isn't repeated here: this line sits above the age slider, and growing it mid-drag would move the slider.
@@ -743,7 +748,8 @@
       [view, rows.map((r, i) => r.map((v, j) => v == null || fr[i][j] == null ? null : v * fr[i][j]))]));
   }
   const tierOf = y => isInc() ? INC.tier[y] : W.tier[y];
-  const isGrey = (p, j) => (isInc() ? INC.estimated : W.estimated)[p - 1][j] === 1;
+  // Grey marks shares WID rounded to 0.00% (our estimates); dollar views use WID's precise averages.
+  const isGrey = (p, j) => state.view === "share" && (isInc() ? INC.estimated : W.estimated)[p - 1][j] === 1;
   function effRange() {
     const first = Math.max(isInc() ? INC.years[0] : years[0], ageOn() ? SV[0] : -Infinity);
     const last = isInc() ? INC.years[INC.years.length - 1] : years[years.length - 1];
@@ -853,7 +859,7 @@
     (ageOn() ? `<br>Head ${ageLabel()}: ${(ageFracs()[p - 1][j] * 100).toFixed(0)}% of this group's ${isInc() ? "income" : "wealth"} (all ages: ${view.fmt(baseM()[state.view][p - 1][j])})` : "") +
     (isGrey(p, j) ? "<br><span style='font-size:11px'>Estimated: WID shows exactly 0.00%</span>" : "") +
     (p === 100 && !isInc() && !ageOn() && DFA[years[j]] && disputed(W.measures.share[99][j], DFA[years[j]].RemainingTop1) ? `<br><span style='font-size:11px'>⚑ Disputed: the Fed DFA puts the top 1% at ${DFA[years[j]].RemainingTop1.toFixed(1)}% of wealth (WID ${W.measures.share[99][j].toFixed(1)}%)</span>` : "") +
-    `<br><span style='font-size:11px'>${TIERS[tierOf(years[j])].label}</span>` +
+    `<br><span style='font-size:11px'>${TIERS[tierOf(years[j])].label}${tierOf(years[j]) === "extended_dfa" && W.dfa_quarter_used[years[j]] ? ` (Fed data through ${W.dfa_quarter_used[years[j]]})` : ""}</span>` +
     "<br><span style='font-size:11px'>Click to slice here</span>";
 
   function buildTraces() {
@@ -1183,7 +1189,7 @@
       }
       bigEl.hidden = false; bar.hidden = true; tbody.innerHTML = "";
       bigEl.textContent = c ? view.fmt(t / c) : "—";
-      note.textContent = `${isInc() ? "Pre-tax income" : "Wealth"}, ${view.label}${state.view === "share" ? "" : ", average per household"}. ${TIERS[tierOf(yr)].label}.` +
+      note.textContent = `${isInc() ? "Pre-tax income" : "Wealth"}, ${view.label}${state.view === "share" ? "" : ", average per adult"}. ${TIERS[tierOf(yr)].label}.` +
         (ageOn() ? ` Only the part ${isInc() ? "received" : "held"} by households headed by someone ${ageLabel()}: ${(ageFracs()[p - 1][years.indexOf(yr)] * 100).toFixed(0)}% of this group's ${isInc() ? "income" : "wealth"} in ${yr}. ${ageYearNote(yr)}` : "") +
         (est ? ` ${est} of ${c} values in this window are grey estimates.` : "");
       return;
@@ -1215,7 +1221,7 @@
   const pctName = p => `${ordinal(p - 1)}–${ordinal(p)}`;
   function updateSlice() {
     const j = jSlice(), view = VIEWS[state.view];
-    const isShare = state.view === "share", valueHead = isShare ? "Share" : `Avg per household · ${view.label}`;
+    const isShare = state.view === "share", valueHead = isShare ? "Share" : `Avg per adult · ${view.label}`;
     document.getElementById("col-c").textContent = isInc() ? "Share of all income" : "Share of all wealth";
     const bd = state.breakdown !== "wealth";
     document.getElementById("slice-table").hidden = bd;
@@ -1339,10 +1345,10 @@
     const js0 = trendSource() === "fed" ? trendYears().filter(j => FED.quarter[years[j]]) : trendYears();
     const [a, b] = [years[js0[0]], years[js0.at(-1)]], inc = isInc();
     const t = state.view === "share" ? `Share of ${inc ? "income" : "wealth"} held by each ${what}`
-      : state.view === "spend_years" ? `${inc ? "Income" : "Wealth"} in years of average household spending, by ${what}`
-      : `Average ${inc ? "pre-tax income" : "net worth"} per household, by ${what} (${VIEWS[state.view].label})`;
+      : state.view === "spend_years" ? `${inc ? "Income" : "Wealth"} in years of average spending, by ${what}`
+      : `Average ${inc ? "pre-tax income" : "net worth"} ${{ wid: "per adult", fed: "per household", both: "per adult (WID) or per household (the Fed)" }[trendSource()]}, by ${what} (${VIEWS[state.view].label})`;
     const srcTag = { wid: "", fed: " · the Fed's figures", both: " · WID and the Fed" }[trendSource()];
-    return `${t}, ${a}–${b}` + srcTag + (ageOn() ? ` · head ${ageLabel()}` : "");
+    return `${t}, ${a}–${b}` + srcTag + (ageOn() ? (state.view === "share" ? ` · part held by heads ${ageLabel()}` : ` · contribution of heads ${ageLabel()}`) : "");
   }
   // Log view uses the same signed log as the 3-D chart, so net-debt years stay on the chart.
   function valueAxis(allVals, text, grid) {
@@ -1356,7 +1362,8 @@
   const tf = v => v == null ? null : state.scale === "log" ? slog(v, VIEWS[state.view].logUnit) : v;
   // A year on a Trends line is a guess when WID estimated it (1950-61 from tax trends, preliminary
   // recent years), when it was carried forward here with Fed data, or, with an age range set, when
-  // the age split falls between surveys. The Fed's own numbers are all published figures.
+  // the age split falls between surveys. The Fed's lines aren't greyed: they're its published series,
+  // though that series is itself modelled (the subtitle says so).
   const ESTIMATED_TIERS = ["wid_imputed", "wid_nowcast", "extended_dfa"];
   const isGuessYear = (y, src) => src !== "fed" && (ESTIMATED_TIERS.includes(tierOf(y)) || (ageOn() && !SV.includes(y)));
   const greyed = c => mix(c, css("--guess"), 0.65);
@@ -1442,7 +1449,7 @@
     // Shade estimated years; mark the 3-D map's slice year.
     const tiers = xs.map(y => src === "fed" ? "measured" : tierOf(y));
     const shapes = [], annotations = [], narrow = trendChart.clientWidth < 600;  // phones: legend only, no end labels
-    const bands = { wid_imputed: "estimated from tax trends", wid_nowcast: "preliminary", extended_dfa: "extended with Fed data" };
+    const bands = { wid_imputed: "estimated from tax trends", wid_nowcast: "preliminary", extended_dfa: "our estimate from Fed changes" };
     let k = 0;
     while (k < xs.length) {
       let e = k; while (e + 1 < xs.length && tiers[e + 1] === tiers[k]) e++;
@@ -1490,10 +1497,10 @@
     document.getElementById("trend-title").textContent = trendTitle("group");
     const offScale = ext.some(s => s.vals.some(v => v != null && v > cap));
     document.getElementById("trend-sub").textContent =
-      (state.view === "share" ? `Each line is one group's share of all US ${noun}` : `Each line is one group's average per household. ${VIEWS[state.view].note.replace(/\.$/, "")}`) +
-      (src === "fed" ? " (the Fed's Distributional Financial Accounts: households, year-end, 1989 on)."
+      (state.view === "share" ? `Each line is one group's share of all US ${noun}` : `Each line is one group's average ${src === "fed" ? "per household" : src === "both" ? "per adult (WID, solid) or per household (the Fed, dotted)" : "per adult"}.${src === "fed" ? "" : ` ${VIEWS[state.view].note.replace(/\.$/, "")}`}`) +
+      (src === "fed" ? " (the Fed's Distributional Financial Accounts: households, year-end, 1989 on). These are the Fed's own estimates, not direct measurements: it spreads the national accounts using its survey, interpolating between surveys and projecting past the latest one (2022)."
         : ` (WID${ageOn() ? `; only households headed by someone ${ageLabel()}, from the Survey of Consumer Finances` : ", all ages"}; shaded years are estimated).`) +
-      (src === "both" ? " Dotted lines are the Fed's figures for the same groups: it ranks households rather than adults, so the top shares come out lower." : "") +
+      (src === "both" ? " Dotted lines are the Fed's estimates for the same groups (interpolated between its surveys, projected after 2022): it ranks households rather than adults, so the top shares come out lower. Neither source is a direct measurement; the gap is a difference of population, concepts and method." : "") +
       (ext.length ? (src === "fed" ? " The dashed top 0.1% is part of the top 1% (the Fed doesn't publish a top 0.01%)." : " The dashed top 0.1% and 0.01% are part of the top 1%.") : "") +
 
       (offScale ? " On this scale they run off the top (↑); switch Height scale to Log to see them in full." : "") +
@@ -1541,6 +1548,7 @@
     const pressed = (sel, attr, val) => document.querySelectorAll(`${sel} button`).forEach(b => b.setAttribute("aria-pressed", b.dataset[attr] === val));
     pressed("#tx-axis-seg", "txaxis", state.txAxis); pressed("#tx-bd-seg", "txbd", state.txBd); pressed("#tx-sector-seg", "txsector", state.txSector);
     document.getElementById("tx-sector-seg").hidden = state.txBd !== "sector";
+    document.getElementById("tx-caveat").hidden = state.txBd === "value";
     document.getElementById("tx-value").textContent = isInc() ? "Income" : "Wealth";
     const byYear = state.txAxis === "year";
     if (byYear) { txSlider.min = yrs[0]; txSlider.max = yrs.at(-1); txSlider.step = 1; txSlider.value = state.txYear; }
@@ -1709,8 +1717,8 @@
        `<p class="muted">Auten and Splinter argue that tax-base changes bias top shares built from tax returns; Iselin and Reck note that pass-through business income grew dramatically after 1986. How much of the jump is real is part of the dispute above.</p>`],
       ["Break in 1962", "method", "Method change",
        `<p>WID's shares before 1962 are estimated from income-tax trends, not measured from tax microdata. At the switch, the bottom half's share of wealth moves ${signed(wealthGroupShare(1962, 0, 50) - wealthGroupShare(1961, 0, 50))} points (1961 to 1962), and its share of income ${signed(incShare(1961, 0, 50) - incShare(1960, 0, 50))} then ${signed(incShare(1962, 0, 50) - incShare(1961, 0, 50))} points (1960 to 1962), the largest year-to-year moves in the bottom half's share of either series. Compare levels across 1962 with care.</p>`],
-      ["Household net worth total", "fixed", "Corrected",
-       `<p>The dollar views had used the Fed's total for households <em>and nonprofits</em>, about 5–6% more than households alone. They now use households only from ${nw.from} (Fed Financial Accounts table B.101.h). Before that the Fed doesn't separate the two, so 1950–${+nw.from.slice(0, 4) - 1} use the combined total × ${(nw.households_part * 100).toFixed(1)}%, the households' part in ${nw.from}.</p>`],
+      ["Dollar views: per adult, not per household", "fixed", "Corrected",
+       `<p>The dollar views used to spread WID's adult-based shares over the Fed's household totals and the Census household count, which mixed adults and households. They now show WID's own average per adult for each 1% group (converted from 2025 dollars with WID's price index). Per-household dollars come from the Fed (Trends, Fed or Compare) and the survey. The Fed's household net worth (households only from ${nw.from}, table B.101.h) is still used to carry 2025–2026 forward.</p>`],
       ["Missing or estimated data", "gap", "Gaps",
        `<p>Estimated rather than measured: 1950–1961 (WID, from income-tax trends); ${span(years.filter(y => W.tier[y] === "wid_nowcast"))} (WID preliminary); ${span(years.filter(y => W.tier[y] === "extended_dfa"))} (extended here with Fed DFA group changes); ${W.estimated.flat().reduce((a, b) => a + b, 0)} of ${100 * years.length} wealth cells that WID rounds to 0.00% (grey); household net worth for 1950–${+nw.from.slice(0, 4) - 1}.</p>` +
        `<p>Missing: October 2025 CPI-U (never published); ${years.at(-1)} is a partial year (${(W.year_notes[years.at(-1)] || []).map(n => n.replace(/\.$/, "").replace(/^[A-Z](?=[a-z])/, c => c.toLowerCase())).join("; ")}); no 1% income data after ${incLast}; the survey behind the breakdowns and the age slider runs only every three years, ${SV[0]}–${SV.at(-1)}, with nothing before ${SV[0]}.</p>`],
@@ -1738,7 +1746,7 @@
     const explained = V.jev.results.filter(r => r.status === "explained").length;
     const waiting = V.jev.results.filter(r => r.status === "pending").length;
     intro.innerHTML = (waiting ? `<strong>${waiting} claim(s) not yet checked</strong> (${V.jev.reason}); rerun <code>python3 scripts/verify.py</code> with <code>TYPESAFE_API_KEY</code> set. ` : "") +
-      `Model <code>${V.jev.model}</code>. Each claim is checked against the source's own documentation. Rows marked “control” are deliberately wrong claims; they pass only if Jev catches them. Verdicts below ${V.jev.auto_accept} confidence are marked for review. Hover a verdict to see its probabilities. ${passed}/${V.jev.results.length} passed${explained ? `; ${explained} disputed only because of the source's wording (explained in the row)` : ""}.`;
+      `Model <code>${V.jev.model}</code>. Each claim is checked against the source's own documentation. Rows marked “control” are deliberately wrong claims; they pass only if Jev catches them. Verdicts below ${V.jev.auto_accept} confidence are marked for review. Confidence is how sure Jev is that the source's documentation backs the claim; it isn't a statistical margin of error on the data. Hover a verdict to see its probabilities. ${passed}/${V.jev.results.length} passed${explained ? `; ${explained} disputed only because of the source's wording (explained in the row)` : ""}.`;
     const label = { pass: ["ok", "✓ Pass"], fail: ["fail", "✕ Fail"], review: ["review", "△ Review"], pending: ["", "… Pending"], explained: ["", "ⓘ Explained"] };
     jev.innerHTML = V.jev.results.map(r => {
       const [cls, txt] = label[r.status];
@@ -1767,7 +1775,7 @@
     `For the Income measure, households are ranked by income and the chosen ages' share of the group's income is used. ` +
     `Years between surveys are interpolated in a straight line, ${SV[SV.length - 1] + 1} onward uses the ${SV[SV.length - 1]} survey, and there is no age split before ${SV[0]}. ` +
     `In ${nFallback} of the ${SV.length * 100} wealth groups, some ages have positive net worth and others negative; there, when the chosen ages' share of the total would fall outside 0–100%, the group is split by share of households instead. ` +
-    `Dollar values are the chosen ages' part divided by every household in the 1% group, so adjacent age ranges add up to the full chart. ` +
+    `Dollar values are the chosen ages' part divided by every adult in the 1% group: their contribution to the group's average, not the average of those households themselves. Adjacent age ranges add up to the full chart. ` +
     `The Show breakdowns follow the age range when it starts and ends on the Fed's group edges (40, 55, 70); for other ranges they cover every age. ` +
     `A narrow age range has only a few surveyed households per 1% group, so single pillars are noisy.`;
   const nEst = W.estimated.flat().reduce((a, b) => a + b, 0);

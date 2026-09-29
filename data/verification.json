@@ -37,9 +37,9 @@
    "info": false
   },
   {
-   "check": "Dollar values = share x net worth / households",
+   "check": "Dollar values = WID's average per adult x WID's price index",
    "ok": true,
-   "detail": "7700 cells; worst error is 0.98x the share-rounding tolerance",
+   "detail": "7500 cells 1950-2024 match ahwealj992 x inyixxi999 within $0.50; 2025, 2026 (estimates) stay proportional to the extended shares",
    "info": false
   },
   {
@@ -103,9 +103,9 @@
    "info": false
   },
   {
-   "check": "Income: dollar values = share x national income / households",
+   "check": "Income: dollar values = WID's average per adult x WID's price index",
    "ok": true,
-   "detail": "national income matches FRED A032RC1A027NBEA; worst error is 0.38x the share-rounding tolerance",
+   "detail": "7500 cells 1950-2024 match aptincj992 x inyixxi999 within $0.50",
    "info": false
   },
   {
@@ -323,19 +323,34 @@
     "control": true
    },
    {
-    "id": "national_income",
-    "source": "A032RC1A027NBEA",
-    "claim": "Annual US national income, measured in billions of dollars.",
+    "id": "wid_avg_per_adult",
+    "source": "WID_ahwealj992",
+    "claim": "The values are average net personal wealth per adult aged 20 and over, with wealth split equally between members of a couple.",
     "expect": "supports",
     "verdict": "supports",
-    "confidence": 0.99,
+    "confidence": 0.98,
     "probabilities": {
-     "supports": 1.0,
-     "contradicts": 0.0,
+     "contradicts": 0.01,
+     "supports": 0.99,
      "not_addressed": 0.0
     },
     "status": "pass",
     "control": false
+   },
+   {
+    "id": "control_wid_avg_household",
+    "source": "WID_ahwealj992",
+    "claim": "The values are average net worth per household, with each household counted once.",
+    "expect": "contradicts",
+    "verdict": "contradicts",
+    "confidence": 1.0,
+    "probabilities": {
+     "contradicts": 1.0,
+     "supports": 0.0,
+     "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": true
    },
    {
     "id": "scf_couples",
