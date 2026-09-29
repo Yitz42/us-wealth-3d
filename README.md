@@ -1,8 +1,6 @@
 # US wealth distribution, 1950–now (3-D)
 
-`index.html` has two tabs. **Explore** opens with a line chart of each group's share over time
-(bottom 50%, middle 40%, next 9%, top 1%; optionally with the Fed DFA's household figures dotted
-alongside; click a year to slice there). Below it, US net worth (1950–2026) or pre-tax income
+`index.html` has three tabs. **3-D map** (the default) shows US net worth (1950–2026) or pre-tax income
 (1950–2024, WID `sptincj992`) for each 1-percentile group, as 3-D pillars or a surface
 (year × percentile × value), with five views: share of wealth, nominal dollars per
 household, real dollars (CPI-U), real dollars (PCE price index), and years of consumer spending.
@@ -21,7 +19,11 @@ each 1% group held by households whose head is in that age range, 1989 onward. T
 range when it starts and ends on the DFA groups' edges (40, 55, 70) and cover all ages otherwise. Percentiles
 still rank all ages. Clicking a bar opens a panel for that year and
 percentile, with options to average over neighbouring years and percentiles. Sources, the method notes and
-"Where sources disagree" stay on Explore; the **Checks** tab (`#checks`) holds the verification results.
+"Where sources disagree" are on this tab too.
+
+**Trends** (`#trends`) is a line chart of each group's share over time (bottom 50%, middle 40%, next 9%,
+top 1%), with estimated years shaded and, optionally, the Fed DFA's household figures dotted alongside;
+clicking a year opens it in the 3-D map. **Checks** (`#checks`) holds the verification results.
 
 ## Run
 

@@ -104,8 +104,8 @@
   #chart { width: 100%; height: 620px; margin-top: 8px; }
 
   /* tabs: Explore / Checks */
-  .tabs { display: flex; gap: 4px; margin-top: 20px; border-bottom: 1px solid var(--border); }
-  .tabs button { font: inherit; font-size: 14px; font-weight: 600; padding: 8px 14px; border: 0; background: none; color: var(--text-secondary);
+  .tabs { display: flex; gap: 4px; margin-top: 20px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
+  .tabs button { font: inherit; font-size: 14px; font-weight: 600; padding: 8px 14px; border: 0; background: none; color: var(--text-secondary); white-space: nowrap;
                  border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer; }
   .tabs button[aria-selected="true"] { color: var(--text-primary); border-bottom-color: var(--accent); }
   .tabs button:focus-visible, .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -116,7 +116,8 @@
   .trend-head { display: flex; flex-wrap: wrap; gap: 6px 20px; align-items: baseline; justify-content: space-between; }
   .trend h2 { font-size: 18px; margin: 0; text-wrap: balance; }
   .trend p { margin: 4px 0 0; font-size: 13px; color: var(--text-secondary); max-width: 900px; }
-  #trend-chart { width: 100%; height: 320px; margin-top: 8px; }
+  #trend-chart { width: 100%; height: 440px; margin-top: 8px; }
+  @media (max-width: 640px) { #trend-chart { height: 380px; } }
   .trend-sum { font-variant-numeric: tabular-nums; }
 
   /* 3-D chart and cross-section side by side on wide screens */
@@ -199,21 +200,12 @@
   </header>
 
   <nav class="tabs" role="tablist" aria-label="Page sections">
-    <button role="tab" id="tab-explore" aria-controls="panel-explore" aria-selected="true">Explore</button>
+    <button role="tab" id="tab-explore" aria-controls="panel-explore" aria-selected="true">3-D map</button>
+    <button role="tab" id="tab-trends" aria-controls="panel-trends" aria-selected="false" tabindex="-1">Trends</button>
     <button role="tab" id="tab-checks" aria-controls="panel-checks" aria-selected="false" tabindex="-1">Checks<span class="count" id="checks-count"></span></button>
   </nav>
 
   <div id="panel-explore" role="tabpanel" aria-labelledby="tab-explore">
-  <div class="card trend">
-    <div class="trend-head">
-      <h2 id="trend-title">Share of wealth held by each group</h2>
-      <label class="check" for="trend-dfa" id="trend-dfa-wrap"><input type="checkbox" id="trend-dfa"> Compare with the Fed's figures (households, 1989 on)</label>
-    </div>
-    <p id="trend-sub"></p>
-    <div id="trend-chart" role="img" aria-label="Line chart of each wealth group's share over time"></div>
-    <p class="trend-sum" id="trend-sum"></p>
-  </div>
-
   <div class="card viz">
     <div class="controls">
       <div class="control">
@@ -434,6 +426,20 @@
     </div>
   </section>
 
+  </div>
+
+  <div id="panel-trends" role="tabpanel" aria-labelledby="tab-trends" hidden>
+  <div class="card trend">
+    <div class="trend-head">
+      <h2 id="trend-title">Share of wealth held by each group</h2>
+      <label class="check" for="trend-dfa" id="trend-dfa-wrap"><input type="checkbox" id="trend-dfa"> Compare with the Fed's figures (households, 1989 on)</label>
+    </div>
+    <p id="trend-sub"></p>
+    <div id="trend-chart" role="img" aria-label="Line chart of each wealth group's share over time"></div>
+    <p class="trend-sum" id="trend-sum"></p>
+  </div>
+
+  <p class="muted">Shares from WID.world (pre-tax national income, or net personal wealth, for each 1% group), added up into four groups; the Fed comparison is its Distributional Financial Accounts. Sources, method notes and where the sources disagree are on the 3-D map tab.</p>
   </div>
 
   <div id="panel-checks" role="tabpanel" aria-labelledby="tab-checks" hidden>
@@ -1272,10 +1278,10 @@
     Plotly.react(trendChart, traces, {
       paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
       font: { family: "Inter, system-ui, sans-serif", size: 12, color: text },
-      margin: { l: 48, r: narrow ? 12 : 132, t: 18, b: 32 }, hovermode: "x unified",
+      margin: { l: 48, r: narrow ? 12 : 132, t: 18, b: narrow ? 120 : 64 }, hovermode: "x unified",
       hoverlabel: { bgcolor: css("--surface-1"), bordercolor: css("--border"), font: { color: css("--text-primary") } },
-      legend: { orientation: "h", x: 0, y: -0.14, font: { size: 12 } },
-      xaxis: { color: text, gridcolor: grid, showgrid: false, zeroline: false, range: [xs[0] - 0.5, xs.at(-1) + 0.5] },
+      legend: { orientation: "h", x: 0, y: 0, yanchor: "bottom", yref: "container", font: { size: 12 } },
+      xaxis: { color: text, gridcolor: grid, showgrid: false, zeroline: false, range: [xs[0] - 1.5, xs.at(-1) + 0.5] },
       yaxis: { color: text, gridcolor: grid, zerolinecolor: css("--text-muted"), ticksuffix: "%", rangemode: "tozero" },
       shapes, annotations,
     }, { responsive: true, displayModeBar: false });
@@ -1285,17 +1291,19 @@
         const yr = e.points && e.points[0] && Math.round(e.points[0].x);
         if (!yr) return;
         state.sliceAxis = "year"; state.year = yr; update();
+        showTab("explore"); document.querySelector(".viz").scrollIntoView({ block: "start" });
       });
     }
     const noun = inc ? "pre-tax income" : "household wealth";
     document.getElementById("trend-title").textContent = `Share of ${inc ? "income" : "wealth"} held by each group, ${xs[0]}–${xs.at(-1)}`;
     document.getElementById("trend-sub").textContent =
-      `Each line is one group's share of all US ${noun} (WID, all ages; shaded years are estimated). Click a year to slice the 3-D chart there.`;
+      `Each line is one group's share of all US ${noun} (WID, all ages; shaded years are estimated). Click a year to open it in the 3-D map.`;
     // One-line summary: where each group started and ended in the years shown.
     const peak = series[1].reduce((b, v, i) => v > series[1][b] ? i : b, 0);
     document.getElementById("trend-sum").textContent = TREND.map(([name], gi) =>
       `${name.replace(/ \(.*\)/, "")}: ${series[gi][0].toFixed(1)}% → ${series[gi].at(-1).toFixed(1)}%`).join(" · ") +
-      ` (${xs[0]} → ${xs.at(-1)}). The middle 40% peaked at ${series[1][peak].toFixed(1)}% in ${xs[peak]}.`;
+      ` (${xs[0]} → ${xs.at(-1)}). The middle 40% peaked at ${series[1][peak].toFixed(1)}% in ${xs[peak]}` +
+      (bands[tiers[peak]] ? ` (an estimated year; ${bands[tiers[peak]]})` : "") + ".";
   }
 
   // ---------- methodology text from the data
@@ -1424,7 +1432,7 @@
     `Estimated (${nEst.toLocaleString()} of ${(100 * years.length).toLocaleString()}): WID shows exactly 0.00%`;
 
   // ---------- tabs: Explore / Checks (#checks opens the second)
-  const TABS = ["explore", "checks"];
+  const TABS = ["explore", "trends", "checks"];
   function showTab(name, focus) {
     for (const t of TABS) {
       const btn = document.getElementById(`tab-${t}`), on = t === name;
@@ -1432,9 +1440,10 @@
       document.getElementById(`panel-${t}`).hidden = !on;
       if (on && focus) btn.focus();
     }
-    // Charts drawn while hidden have no width; resize them when the Explore tab returns.
-    if (name === "explore") [trendChart, chart, sliceChart].forEach(el => { try { Plotly.Plots.resize(el); } catch (e) {} });
-    try { history.replaceState(null, "", name === "checks" ? "#checks" : location.pathname + location.search); } catch (e) {}
+    // Charts drawn while hidden have no width; resize them when their tab is shown.
+    if (name === "explore") [chart, sliceChart].forEach(el => { try { Plotly.Plots.resize(el); } catch (e) {} });
+    if (name === "trends") { try { Plotly.Plots.resize(trendChart); } catch (e) {} drawTrend(); }  // labels depend on its width, 0 while hidden
+    try { history.replaceState(null, "", name === "explore" ? location.pathname + location.search : `#${name}`); } catch (e) {}
   }
   document.querySelector(".tabs").addEventListener("click", e => { const b = e.target.closest("[role=tab]"); if (b) showTab(b.id.slice(4)); });
   document.querySelector(".tabs").addEventListener("keydown", e => {
@@ -1450,7 +1459,7 @@
   }
 
   drawTiers(); renderVerification(); renderDisputes(); update();
-  if (location.hash === "#checks") showTab("checks");
+  if (TABS.includes(location.hash.slice(1))) showTab(location.hash.slice(1));
   const mq = matchMedia("(prefers-color-scheme: dark)");
   mq.addEventListener("change", () => { drawTiers(); draw(); drawTrend(); });
   new MutationObserver(() => { drawTiers(); draw(); drawTrend(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
