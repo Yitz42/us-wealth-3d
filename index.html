@@ -1287,7 +1287,13 @@
     const surveys = [...new Set(parts.flatMap(q => q.surveys))].sort();
     const n = surveys.reduce((a, sv) => a + sums(SV.indexOf(sv), ["n"], pLo, pHi).n / S.implicates, 0);
     const avgT = k => parts.reduce((a, q) => a + q.t[k], 0) / parts.length;
+    // Population: weighted households (adults for gender) in each category, and the US total for the same
+    // survey years, all ages (the survey's weights add up to every US household).
+    const unit = group === "gender" ? "adults" : "w", F = S.rankings[surveyKey()];
+    const usTotal = surveys.reduce((a, sv) => a + F[unit][SV.indexOf(sv)].reduce((t, v) => t + v, 0), 0) / surveys.length;
     return { sh, surveys, n: Math.round(n), pLo, pHi, interp: parts.some(q => q.interp),
+             pop: Object.fromEntries(cats.map(k => [k, avgT(k)])), popGroup: avgT(unit), usTotal, popUnit: group === "gender" ? "adults" : "households",
+             perHh: Object.fromEntries(cats.map(k => [k, avgT(k) / avgT("w")])),
              centerEst: !SV.includes(yr),  // the bar's own year has no survey
              outside: parts.every(q => q.outside), debtRatio: avgT("debt") / avgT("assets"), assetsPerHh: avgT("assets") / avgT("w"),
              partWomen: avgT("part_women"), partMen: avgT("part_men") };
@@ -1350,15 +1356,24 @@
       `<div style="flex: ${Math.max(r.sh[k], 0)} 0 0; background: ${bdColor(g, ci)}" title="${bdLabel(g, k, label)} ${(r.sh[k] * 100).toFixed(1)}%"></div>`).join("");
     // Women's part of the group's net worth or income, a couple's split equally; only when both parts are positive.
     const heldWomen = r.partWomen > 0 && r.partMen > 0 ? r.partWomen / (r.partWomen + r.partMen) : null;
-    tbody.innerHTML = cats.map(([k, label], ci) =>
-      `<tr><td><span class="swatch" style="background: ${bdColor(g, ci)}"></span>${bdLabel(g, k, label)}</td><td class="num">${(r.sh[k] * 100).toFixed(1)}% of ${BD[g].unit}</td></tr>`).join("") +
+    // Counts are for the whole window: several percentiles add up, several years average.
+    const count = v => v >= 1e6 ? `${(v / 1e6).toFixed(v >= 1e7 ? 1 : 2)}M` : v >= 1e3 ? `${Math.round(v / 1e3).toLocaleString()}K` : Math.round(v).toLocaleString();
+    const pctUS = v => { const x = v / r.usTotal * 100; return `${x < 0.01 ? x.toFixed(3) : x < 0.1 ? x.toFixed(2) : x.toFixed(1)}%`; };
+    const holdings = g === "holdings";
+    tbody.innerHTML = `<tr class="muted"><th></th><th class="num">Share of this group</th><th class="num">${holdings ? "Per household (2022 $)" : r.popUnit[0].toUpperCase() + r.popUnit.slice(1)}</th>` +
+      `${holdings ? "" : `<th class="num">% of all US ${r.popUnit}</th>`}</tr>` +
+      cats.map(([k, label], ci) =>
+      `<tr><td><span class="swatch" style="background: ${bdColor(g, ci)}"></span>${bdLabel(g, k, label)}</td><td class="num">${(r.sh[k] * 100).toFixed(1)}% of ${BD[g].unit}</td>` +
+      (holdings ? `<td class="num">${money(r.perHh[k])}</td>` : `<td class="num">${count(r.pop[k])}</td><td class="num">${pctUS(r.pop[k])}</td>`) + `</tr>`).join("") +
+      `<tr><td><strong>This group</strong></td><td class="num">100%</td><td class="num">${holdings ? money(r.assetsPerHh) : count(r.popGroup)}</td>${holdings ? "" : `<td class="num">${pctUS(r.popGroup)}</td>`}</tr>` +
+      (holdings ? `<tr><td>Households in this group</td><td></td><td class="num">${count(r.popGroup)} (${pctUS(r.popGroup)} of all)</td></tr>` : "") +
       (g === "gender" && heldWomen != null ? `<tr><td>${isInc() ? "Income" : "Wealth"} held by women*</td><td class="num">${(heldWomen * 100).toFixed(1)}% of this group's ${isInc() ? "income" : "net worth"}</td></tr>` : "") +
-      (g === "holdings" ? `<tr><td>Average assets per household</td><td class="num">${money(r.assetsPerHh)} (2022 dollars)</td></tr>
-        <tr><td>Debt</td><td class="num">${(r.debtRatio * 100).toFixed(0)}% of assets</td></tr>` : "");
+      (g === "holdings" ? `<tr><td>Debt</td><td class="num">${(r.debtRatio * 100).toFixed(0)}% of assets</td><td></td></tr>` : "");
     const surveys = r.surveys.join(", ");
     note.textContent = `Survey of Consumer Finances ${surveys}, ${r.n.toLocaleString()} surveyed households${bdAgeFiltered() ? ` headed by someone ${ageLabel()}` : ""}, ranked by ${isInc() ? "income" : "net worth"} against all ages.` +
       (r.outside ? ` No survey in ${yr}; showing the nearest (${surveys}).` : r.interp ? " Years between surveys are interpolated." : "") +
       (r.n < 100 ? " Small sample: widen the average for a steadier estimate." : "") +
+      ` Counts are survey estimates of US ${r.popUnit}${state.avgY && r.surveys.length > 1 ? ", averaged over the years" : ""}; "% of all US ${r.popUnit}" divides by every ${r.popUnit === "adults" ? "adult" : "household"} in the survey year${r.surveys.length > 1 ? "s" : ""}, all ages.` +
       (g === "gender" ? ` ${COUPLE_NOTE} Each couple's ${isInc() ? "income" : "net worth"} is split equally between the two, as WID does for the 3-D chart.` : "");
   }
   const avgYIn = document.getElementById("avg-y"), avgPIn = document.getElementById("avg-p");
