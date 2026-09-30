@@ -780,6 +780,9 @@ def main():
         "census_income": load_census_income(),
         # BLS Consumer Expenditure Survey by income fifth: spending, income before and after taxes, 1984 on.
         "bls_ce": load_bls_ce(),
+        # SCF+ (Kuhn, Schularick and Steins): household wealth shares and averages (2016 dollars) by group, 1949-2016,
+        # summarized by scripts/build_scfplus.py; null if that summary hasn't been built.
+        "scfplus": json.loads((RAW / "scfplus" / "scfplus_groups.json").read_text()) if (RAW / "scfplus" / "scfplus_groups.json").exists() else None,
         # Census SIPP median and mean household net worth by state.
         "sipp_states": load_sipp_states(),
         # The Fed DFA's wealth by group (bottom50, middle40, next9, top1, top01) in every view, 1989 on.

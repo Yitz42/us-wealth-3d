@@ -205,6 +205,18 @@
    "info": false
   },
   {
+   "check": "SCF+ group shares add up; weights match the Census household count",
+   "ok": true,
+   "detail": "31 surveys 1949\u20132016; the four groups sum to 100% within 0.001 pp; from 1977 the weights add up to FRED TTLHH within 0.0% (before 1977 they are relative, -67% to -48% of the count, which only affects the totals, not shares or averages); 2065 of the file's rows have no net wealth or weight and are left out",
+   "info": false
+  },
+  {
+   "check": "Cross-source: middle 40% share, SCF+ vs WID",
+   "ok": true,
+   "detail": "SCF+ (households) 26.8% in 1949, 31.3% at its highest (1977), 21.8% in 2016; WID (adults) 27.6% in 2016",
+   "info": true
+  },
+  {
    "check": "Cross-source: SIPP vs SCF, 2022",
    "ok": true,
    "detail": "median $176,500 (SIPP) vs $192,700 (SCF), -8%; mean below the 99th percentile $541,100 vs $694,573, -22%. The SCF oversamples wealthy households; SIPP isn't built to measure wealth at the top.",
@@ -1115,6 +1127,66 @@
     "probabilities": {
      "contradicts": 1.0,
      "supports": 0.0,
+     "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": true
+   },
+   {
+    "id": "ksk_archival",
+    "source": "KuhnSchularickSteins_2020",
+    "claim": "SCF+ is built from archival data of historical waves of the Survey of Consumer Finances.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 1.0,
+    "probabilities": {
+     "supports": 1.0,
+     "contradicts": 0.0,
+     "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "ksk_households",
+    "source": "KuhnSchularickSteins_2020",
+    "claim": "SCF+ measures the income and wealth of households.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 0.93,
+    "probabilities": {
+     "supports": 0.96,
+     "contradicts": 0.01,
+     "not_addressed": 0.03
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "ksk_portfolios",
+    "source": "KuhnSchularickSteins_2020",
+    "claim": "Middle-class households hold mostly housing, while rich households mostly own business equity.",
+    "expect": "supports",
+    "verdict": "supports",
+    "confidence": 0.99,
+    "probabilities": {
+     "supports": 1.0,
+     "contradicts": 0.0,
+     "not_addressed": 0.0
+    },
+    "status": "pass",
+    "control": false
+   },
+   {
+    "id": "control_ksk_swapped",
+    "source": "KuhnSchularickSteins_2020",
+    "claim": "Rich households hold mostly housing, while middle-class households mostly own business equity.",
+    "expect": "contradicts",
+    "verdict": "contradicts",
+    "confidence": 1.0,
+    "probabilities": {
+     "supports": 0.0,
+     "contradicts": 1.0,
      "not_addressed": 0.0
     },
     "status": "pass",

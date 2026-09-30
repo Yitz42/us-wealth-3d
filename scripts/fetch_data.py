@@ -183,6 +183,19 @@ LITERATURE = {
                    "series, wealth shares increased by 10.0, 7.9, 5.4, and 3.1 percentage points to 36.6%, 18.6%, 9.5%, and 4.6%. "
                    "Across all approaches, top wealth shares have steadily risen since the 1980s.",
     },
+    "KuhnSchularickSteins_2020": {
+        "url": "https://www.journals.uchicago.edu/doi/10.1086/708815",
+        "title": "Kuhn, Schularick and Steins (2020), Income and Wealth Inequality in America, 1949-2016, Journal of Political Economy 128(9)",
+        "abstract": "This paper introduces a new long-run data set based on archival data from historical waves of the Survey of "
+                    "Consumer Finances. Studying the joint distribution of household income and wealth, we expose the central "
+                    "importance of portfolio composition and asset prices for wealth dynamics in postwar America. Asset prices shift "
+                    "the wealth distribution because of systematic differences in household portfolios along the wealth distribution. "
+                    "Middle-class portfolios are dominated by housing, while rich households predominantly own business equity. "
+                    "Differential changes in equity and house prices shaped wealth dynamics in postwar America and decoupled the "
+                    "income and wealth distribution over extended periods.",
+        "data_file": "SCF_plus.dta (data version September 2019): one row per household and imputation (impnum), with net wealth "
+                     "adjusted to the Financial Accounts (ffanw) and post-stratified weights (wgtI95W95).",
+    },
     # Their data files, which the Trends tab plots (TotalWealthShare.xlsx, Baseline sheet).
     "SmithZidarZwick_2023_data": {
         "url": "https://www.ericzwick.com/wealth/Supplemental_data.zip",

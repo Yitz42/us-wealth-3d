@@ -137,6 +137,12 @@ CLAIMS = {
         ("control_cbo_households", "contradicts", "Each income quintile contains exactly the same number of households."),
         ("control_cbo_cpi", "contradicts", "Dollar amounts are adjusted for inflation with the consumer price index for urban consumers (CPI-U)."),
     ],
+    "KuhnSchularickSteins_2020": [
+        ("ksk_archival", "supports", "SCF+ is built from archival data of historical waves of the Survey of Consumer Finances."),
+        ("ksk_households", "supports", "SCF+ measures the income and wealth of households."),
+        ("ksk_portfolios", "supports", "Middle-class households hold mostly housing, while rich households mostly own business equity."),
+        ("control_ksk_swapped", "contradicts", "Rich households hold mostly housing, while middle-class households mostly own business equity."),
+    ],
     "AutenSplinter_2024": [
         ("as_lower", "supports",
          "Auten and Splinter estimate top pre-tax income shares that are lower, and have risen less since 1980, than other studies using tax data."),
@@ -649,6 +655,26 @@ def other_source_checks(w):
     record("Census SIPP by state copied", len(st["states"]) == 51 and abs(hh_sum / (float(t3["Total"]) * 1000) - 1) < 0.01,
            f"{len(st['states'])} states and DC ({st['year']}); state household counts sum to {hh_sum / 1e6:.1f}M vs {float(t3['Total']) / 1e3:.1f}M in the Total row; "
            f"no estimate published for {', '.join(suppressed)} (Census: sample too small)")
+
+    # SCF+: groups add up, the weights match the Census household count, and 2016 lines up with the SCF.
+    scp = w.get("scfplus")
+    if scp:
+        worst_sum = max(abs(sum(scp["share"][g][i] for g in scp["share"]) - 100) for i in range(len(scp["years"])))
+        hh_gap = {y: scp["households"][i] / w["macro"][str(y)]["households"] - 1 for i, y in enumerate(scp["years"]) if str(y) in w["macro"]}
+        # From 1977 the weights add up to all households; the historical surveys' weights before that are
+        # relative (they add up to a third to a half of the count), which is all a within-year ranking needs.
+        worst_hh = max(abs(v) for y, v in hh_gap.items() if y >= 1977)
+        early_hh = [v for y, v in hh_gap.items() if y < 1977]
+        record("SCF+ group shares add up; weights match the Census household count", worst_sum < 0.01 and worst_hh < 0.02,
+               f"{len(scp['years'])} surveys {scp['years'][0]}–{scp['years'][-1]}; the four groups sum to 100% within {worst_sum:.3f} pp; from 1977 the weights add up to "
+               f"FRED TTLHH within {worst_hh:.1%} (before 1977 they are relative, {min(early_hh):+.0%} to {max(early_hh):+.0%} of the count, which only affects the "
+               f"totals, not shares or averages); {sum(scp['rows_dropped'].values())} of the file's rows have no net wealth or weight and are left out")
+        k16 = w["years"].index(2016) if 2016 in w["years"] else None
+        i16 = scp["years"].index(2016)
+        wid_mid = sum(w["measures"]["share"][i][k16] for i in range(50, 90))
+        record("Cross-source: middle 40% share, SCF+ vs WID", True,
+               f"SCF+ (households) {scp['share']['middle40'][0]:.1f}% in {scp['years'][0]}, {max(scp['share']['middle40']):.1f}% at its highest "
+               f"({scp['years'][scp['share']['middle40'].index(max(scp['share']['middle40']))]}), {scp['share']['middle40'][i16]:.1f}% in 2016; WID (adults) {wid_mid:.1f}% in 2016", info=True)
 
     # Information: the two surveys in the one year both cover (SCF dollars are 2022 dollars).
     i = sp["years"].index(2022)
