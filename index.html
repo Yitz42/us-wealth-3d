@@ -1792,12 +1792,13 @@
       const gs = (gi, jj) => useFed ? (FED.quarter[years[jj]] ? FED.groups[FED_KEYS[gi]].share[jj] : null) : groupValueShare(TX_GROUPS[gi][1], TX_GROUPS[gi][2], jj);
       if (useFed) state.txYear = Math.max(state.txYear, +Object.keys(FED.quarter)[0]);
       const j = years.indexOf(state.txYear);
-      // rows: [label, value, colour, share of all, Fed value (Compare only)]
+      // rows: [label, value, colour, share of all, Fed value (Compare only), fraction of the population]
       const fedTop = j2 => FED.quarter[years[j2]] ? FED.groups.top01 : null;
-      const rows = [...TX_GROUPS.map(([name], gi) => [name, gv(gi, j), `--cat-${gi + 1}`, gs(gi, j), fedValue(FED_KEYS[gi], j)]),
+      const FRAC = [0.5, 0.4, 0.09, 0.01], EXT_FRAC = { top01: 0.001, top001: 0.0001 };
+      const rows = [...TX_GROUPS.map(([name], gi) => [name, gv(gi, j), `--cat-${gi + 1}`, gs(gi, j), fedValue(FED_KEYS[gi], j), FRAC[gi]]),
                     ...(!extremesWanted() ? [] : useFed
-                      ? [["Top 0.1%*", fedValue("top01", j), "--cat-5", fedTop(j) && fedTop(j).share[j], null]]
-                      : EXTREME.map(([name, k2], ei) => [`${name}*`, extremeValue(k2, j), `--cat-${ei + 5}`, extremeShare(k2, j), k2 === "top01" ? fedValue("top01", j) : null]))];
+                      ? [["Top 0.1%*", fedValue("top01", j), "--cat-5", fedTop(j) && fedTop(j).share[j], null, 0.001]]
+                      : EXTREME.map(([name, k2], ei) => [`${name}*`, extremeValue(k2, j), `--cat-${ei + 5}`, extremeShare(k2, j), k2 === "top01" ? fedValue("top01", j) : null, EXT_FRAC[k2]]))];
       let x, y, colors, fedColors;
       if (byYear) {
         x = rows.map(r => r[0]); y = rows.map(r => r[1]); fedColors = rows.map(r => css(r[2]));
@@ -1831,11 +1832,18 @@
       key.innerHTML = (anyGuess ? `<span style="--c: var(--guess)">Grey: estimated ${byYear ? "year" : "years"}</span>` : "") +
         (extremesWanted() && byYear ? `<span class="footnote">* ${useFed ? "The top 0.1% is part of the top 1% (the Fed doesn't publish a top 0.01%)." : `The top 0.1% and 0.01% are part of the top 1%, and WID's figures for them run to ${lastTop}.`} On a linear dollar scale they can run off the top; the table has their values.</span>` : "");
       const both = src === "both";
-      thead.innerHTML = `<tr><th>Group</th><th class="num">${useFed ? "The Fed · " : both ? "WID · " : ""}${view.label}</th>${state.view === "share" ? "" : `<th class="num">Share of all ${isInc() ? "income" : "wealth"}</th>`}${both ? `<th class="num">The Fed · ${view.label}</th>` : ""}</tr>`;
+      // Population: WID's groups are fractions of all adults (20 and over); the Fed's are fractions of all households.
+      const mac = W.macro[state.txYear] || {}, people = v => v >= 1e6 ? `${(v / 1e6).toFixed(v >= 1e7 ? 1 : 2)}M` : `${Math.round(v / 1e3).toLocaleString()}K`;
+      const popCell = (frac, n) => `<td class="num">${n ? people(frac * n) : "—"}</td>`;
+      thead.innerHTML = `<tr><th>Group</th><th class="num">${useFed ? "The Fed · " : both ? "WID · " : ""}${view.label}</th>${state.view === "share" ? "" : `<th class="num">Share of all ${isInc() ? "income" : "wealth"}</th>`}${both ? `<th class="num">The Fed · ${view.label}</th>` : ""}` +
+        `${useFed ? "" : `<th class="num">Adults</th>`}${useFed || both ? `<th class="num">Households</th>` : ""}</tr>`;
       const pct = v => v == null ? "—" : `${v.toFixed(1)}%`;
-      tbody.innerHTML = byYear ? rows.map(r => `<tr><td>${r[0]}</td><td class="num">${tfmt(r[1])}</td>${state.view === "share" ? "" : `<td class="num">${pct(r[3])}</td>`}${both ? `<td class="num">${tfmt(r[4])}</td>` : ""}</tr>`).join("") : "";
-      note.textContent = useFed ? `The Fed's Distributional Financial Accounts, ${FED.quarter[state.txYear] || "no data that year"} (households).`
-        : `${TIERS[tierOf(state.txYear)].label}.` + (both ? " The Fed's column ranks households, year-end quarter." : "");
+      tbody.innerHTML = byYear ? rows.map(r => `<tr><td>${r[0]}</td><td class="num">${tfmt(r[1])}</td>${state.view === "share" ? "" : `<td class="num">${pct(r[3])}</td>`}${both ? `<td class="num">${tfmt(r[4])}</td>` : ""}` +
+        `${useFed ? "" : popCell(r[5], mac.adults)}${useFed || both ? popCell(r[5], mac.households) : ""}</tr>`).join("") +
+        `<tr class="muted"><td>Everyone</td><td></td>${state.view === "share" ? "" : "<td></td>"}${both ? "<td></td>" : ""}${useFed ? "" : popCell(1, mac.adults)}${useFed || both ? popCell(1, mac.households) : ""}</tr>` : "";
+      note.textContent = (useFed ? `The Fed's Distributional Financial Accounts, ${FED.quarter[state.txYear] || "no data that year"} (households).`
+        : `${TIERS[tierOf(state.txYear)].label}.` + (both ? " The Fed's column ranks households, year-end quarter." : "")) +
+        (byYear ? ` ${useFed ? "Households" : "Adults"}: each group's fraction of all ${useFed ? "US households (Census)" : "US adults aged 20 and over (WID's count), since WID ranks adults with a couple's wealth split equally"}${both ? "; households: the same fraction of all US households, the Fed's unit" : ""}.` : "");
       return;
     }
     // Survey breakdowns: each group is the range of 1% bins it covers, in the survey's own ranking.
